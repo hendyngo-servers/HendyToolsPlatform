@@ -1,13 +1,18 @@
-import os
 import shutil
-import ctypes
 import threading
 import string
 import zipfile
 import time
+import platform
 from datetime import datetime
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 import customtkinter as ctk
+import requests
+import webbrowser
+
+# Thiết lập phiên bản hiện tại và đường dẫn kiểm tra update từ GitHub
+CURRENT_VERSION = "1.1"
+UPDATE_URL = "https://raw.githubusercontent.com/ngogiaidy56-eng/HendyToolsApp/main/version.json"
 
 # Thiết lập giao diện mặc định
 ctk.set_appearance_mode("Light")
