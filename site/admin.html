@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071225">
+  <meta name="description" content="Hendy Release Console — quản lý trạng thái phát hành, lịch sử phiên bản và ghi chú cập nhật.">
+  <title>Hendy Release Console</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/admin.css">
+  <script src="/admin.js" defer></script>
+</head>
+<body>
+  <div class="backdrop glow-one"></div><div class="backdrop glow-two"></div>
+  <header class="header wrap">
+    <a class="brand" href="/" aria-label="Về trang tải Hendy Tools"><span class="brand-icon">H<span>+</span></span><span><strong>HENDY <b>TOOLS</b></strong><small>RELEASE CONSOLE</small></span></a>
+    <nav><a href="/">Trang tải ứng dụng</a><a href="https://github.com/ngogiaidy56-eng/HendyToolsApp" target="_blank" rel="noopener noreferrer">Mã nguồn ↗</a></nav>
+  </header>
+  <main class="wrap">
+    <section class="intro">
+      <div>
+        <div class="eyebrow"><span class="status-dot"></span> RELEASE MANAGEMENT <span class="eyebrow-pill">PRODUCTION</span></div>
+        <h1>Quản trị <span>phát hành.</span></h1>
+        <p>Theo dõi phiên bản Windows và Android, kiểm tra changelog đã công bố và bắt đầu quy trình phát hành qua GitHub Actions.</p>
+      </div>
+      <div class="intro-actions">
+        <a class="button button-main" href="https://github.com/ngogiaidy56-eng/HendyToolsApp/actions/workflows/build-and-publish-release.yml" target="_blank" rel="noopener noreferrer">＋ Phát hành phiên bản <span>↗</span></a>
+        <a class="button button-secondary" href="https://github.com/ngogiaidy56-eng/HendyToolsApp/actions/workflows/deploy-cloudflare.yml" target="_blank" rel="noopener noreferrer">Deploy website / API <span>↗</span></a>
+      </div>
+    </section>
+
+    <section class="safety-banner" aria-label="Bảo mật phát hành">
+      <span class="safety-icon">⌁</span>
+      <div><strong>Phát hành an toàn qua GitHub</strong><p>Trang này chỉ đọc trạng thái phát hành. Các tác vụ build và ghi file lên R2 yêu cầu đăng nhập GitHub có quyền phù hợp; không lưu Cloudflare API token trong trình duyệt.</p></div>
+      <span class="secure-tag">AUTHENTICATED</span>
+    </section>
+
+    <section class="section-title"><div><span class="kicker">01 / RELEASE STATUS</span><h2>Trạng thái các nền tảng</h2><p>Đọc manifest mới nhất trực tiếp từ Hendy Update Server.</p></div><button class="button button-secondary small" id="refresh" type="button">↻ Làm mới</button></section>
+    <div class="platform-grid">
+      <article class="platform-card" data-platform="windows">
+        <div class="platform-head"><span class="platform-logo windows-logo">⊞</span><span class="state-chip state-loading" id="windows-state">ĐANG KIỂM TRA</span></div>
+        <div class="platform-type">DESKTOP · WINDOWS</div><h3>Hendy Tools Pro</h3><div class="version" id="windows-version">—</div>
+        <div class="metric-grid"><div><small>Build</small><b id="windows-build">—</b></div><div><small>Kích thước</small><b id="windows-size">—</b></div></div>
+        <div class="platform-date" id="windows-date">Đang tải ngày phát hành…</div>
+        <ul class="notes-list" id="windows-notes"><li>Đang tải changelog…</li></ul>
+        <a class="button button-secondary card-button" id="windows-download" href="/" aria-disabled="true">Chưa có bản tải xuống</a>
+      </article>
+      <article class="platform-card" data-platform="android">
+        <div class="platform-head"><span class="platform-logo android-logo">◉</span><span class="state-chip state-loading" id="android-state">ĐANG KIỂM TRA</span></div>
+        <div class="platform-type">MOBILE · ANDROID</div><h3>Hendy Tools Mobile</h3><div class="version" id="android-version">—</div>
+        <div class="metric-grid"><div><small>Build</small><b id="android-build">—</b></div><div><small>Kích thước</small><b id="android-size">—</b></div></div>
+        <div class="platform-date" id="android-date">Đang tải ngày phát hành…</div>
+        <ul class="notes-list" id="android-notes"><li>Đang tải changelog…</li></ul>
+        <a class="button button-secondary card-button" id="android-download" href="/" aria-disabled="true">Chưa có bản APK</a>
+      </article>
+      <article class="platform-card platform-ios" data-platform="ios">
+        <div class="platform-head"><span class="platform-logo ios-logo">●</span><span class="state-chip state-muted" id="ios-state">PHỤ THUỘC APPLE</span></div>
+        <div class="platform-type">MOBILE · IOS / IPADOS</div><h3>Hendy Tools Mobile</h3><div class="version" id="ios-version">Chưa phát hành</div>
+        <div class="metric-grid"><div><small>Build</small><b id="ios-build">—</b></div><div><small>Phân phối</small><b>Apple</b></div></div>
+        <div class="platform-date" id="ios-date">Cần cấu hình phương thức phân phối hợp lệ.</div>
+        <ul class="notes-list" id="ios-notes"><li>iOS không thể cài công khai chỉ bằng một file IPA thông thường.</li></ul>
+        <a class="button button-secondary card-button" id="ios-download" href="https://developer.apple.com/programs/" target="_blank" rel="noopener noreferrer">Thông tin phân phối iOS ↗</a>
+      </article>
+    </div>
+
+    <section class="section-title history-title"><div><span class="kicker">02 / RELEASE ARCHIVE</span><h2>Lịch sử phiên bản & changelog</h2><p>Các manifest lịch sử được tạo khi publisher phát hành bản mới. Những phiên bản cũ đã công bố trước khi bật archive có thể không xuất hiện.</p></div>
+      <div class="filters" role="group" aria-label="Lọc nền tảng"><button type="button" class="filter active" data-filter="all">Tất cả</button><button type="button" class="filter" data-filter="windows">Windows</button><button type="button" class="filter" data-filter="android">Android</button></div>
+    </section>
+    <div class="history-panel"><div class="history-header"><span>Phiên bản</span><span>Nền tảng</span><span>Ngày phát hành</span><span>Ghi chú</span></div><div id="history-list"><div class="empty-state"><span class="spinner"></span><span>Đang tải lịch sử phát hành…</span></div></div></div>
+    <div class="history-error" id="history-error" hidden>Chưa có bản phát hành hoặc chưa thể truy cập lịch sử. Sau khi publish phiên bản mới, lịch sử sẽ được lưu tự động.</div>
+
+    <section class="workflow-panel">
+      <div class="workflow-icon">↗</div><div class="workflow-copy"><span class="kicker">03 / PUBLISH WORKFLOW</span><h2>Phát hành bản cập nhật tiếp theo</h2><p>GitHub Actions sẽ build installer Windows và APK Android, tính SHA-256, upload package lên R2 rồi công bố manifest mới nhất. Nhập version, build number và changelog ở màn hình workflow.</p><div class="workflow-steps"><span><i>01</i> Build trên cloud</span><span><i>02</i> Upload R2</span><span><i>03</i> Cập nhật website</span></div></div><a class="button button-main workflow-cta" href="https://github.com/ngogiaidy56-eng/HendyToolsApp/actions/workflows/build-and-publish-release.yml" target="_blank" rel="noopener noreferrer">Mở GitHub Actions <span>↗</span></a>
+    </section>
+    <section class="check-panel"><div><span class="kicker">SYSTEM CHECK</span><b id="api-status">Đang kiểm tra API…</b><small id="api-last-checked">—</small></div><a href="/healthz" target="_blank" rel="noopener noreferrer">Mở health check ↗</a></section>
+  </main>
+  <footer class="footer wrap"><a class="brand" href="/"><span class="brand-icon">H<span>+</span></span><span><strong>HENDY <b>TOOLS</b></strong><small>RELEASE CONSOLE</small></span></a><span>Release metadata is public · Publishing is protected by GitHub permissions.</span></footer>
+</body>
+</html>

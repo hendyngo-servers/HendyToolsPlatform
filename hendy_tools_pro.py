@@ -51,7 +51,7 @@ APP_NAME = "Hendy Tools Pro"
 APP_VERSION = "3.1.1"
 APP_BUILD = 30101
 # Replace with the actual Worker URL before publishing a production build.
-UPDATE_SERVER_BASE_URL = os.environ.get("HENDY_UPDATE_BASE_URL", "https://hendy-update.example.workers.dev").rstrip("/")
+UPDATE_SERVER_BASE_URL = os.environ.get("HENDY_UPDATE_BASE_URL", "https://hendytoolsplatform.ngogiaidy56.workers.dev").rstrip("/")
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 IS_WINDOWS = platform.system() == "Windows"
 ARCHITECTURE = platform.machine() or "Unknown"

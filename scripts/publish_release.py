@@ -124,6 +124,21 @@ def main() -> int:
 
     manifest_path = manifests / f"{args.platform}-{args.channel}.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    # Keep immutable manifest snapshots so the website's release console can show changelog history.
+    history_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    history_dir = out / "history" / args.platform / args.channel
+    history_dir.mkdir(parents=True, exist_ok=True)
+    history_name = f"{history_stamp}-{args.version}-build{args.build}.json"
+    history_path = history_dir / history_name
+    history_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    jobs.append([
+        "npx", "wrangler", "r2", "object", "put", f"{BUCKET}/history/{args.platform}/{args.channel}/{history_name}",
+        "--file", str(history_path), "--remote", "--force",
+        "--content-type", "application/json; charset=utf-8",
+        "--cache-control", "public, max-age=31536000, immutable",
+    ])
+    # Publish current/latest manifest last, only after package and immutable history snapshot are uploaded.
     jobs.append([
         "npx", "wrangler", "r2", "object", "put", f"{BUCKET}/manifests/{args.platform}-{args.channel}.json",
         "--file", str(manifest_path), "--remote", "--force",
