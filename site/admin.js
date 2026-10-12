@@ -23,6 +23,10 @@
     return data;
   }
   function showUnavailable(platform, message) {
+    if (platform === 'windows' || platform === 'android') {
+      $(`summary-${platform}`).textContent = '—';
+      $(`summary-${platform}-state`).textContent = 'Chưa phát hành';
+    }
     $(`${platform}-version`).textContent = 'Chưa có bản phát hành';
     $(`${platform}-state`).textContent = 'CHƯA PHÁT HÀNH';
     $(`${platform}-state`).className = 'state-chip state-muted';
@@ -35,6 +39,10 @@
   }
   function renderRelease(platform, release) {
     if (!release) { showUnavailable(platform); return; }
+    if (platform === 'windows' || platform === 'android') {
+      $(`summary-${platform}`).textContent = `v${release.version || '—'}`;
+      $(`summary-${platform}-state`).textContent = release.mandatory ? 'Cần cập nhật' : 'Đã công bố';
+    }
     $(`${platform}-version`).textContent = `v${release.version || '—'}`;
     $(`${platform}-build`).textContent = release.build ?? '—';
     $(`${platform}-size`).textContent = release.artifact ? fmtSize(release.artifact.size) : (platform === 'ios' ? 'Theo Apple' : '—');
@@ -50,11 +58,11 @@
     if (platform === 'ios') {
       const url = typeof release.storeUrl === 'string' && release.storeUrl.startsWith('https://') ? release.storeUrl : null;
       link.href = url || 'https://developer.apple.com/programs/';
-      link.textContent = url ? 'Mở trang phân phối ↗' : 'Thông tin phân phối iOS ↗';
+      link.innerHTML = url ? 'Mở trang phân phối iOS <span>↗</span>' : 'Thông tin phân phối iOS <span>↗</span>'; 
       link.removeAttribute('aria-disabled');
     } else if (release.downloadUrl) {
       link.href = new URL(release.downloadUrl, location.origin).toString();
-      link.textContent = platform === 'windows' ? 'Tải bộ cài Windows ↓' : 'Tải APK Android ↓';
+      link.innerHTML = platform === 'windows' ? 'Tải bộ cài Windows <span>↓</span>' : 'Tải APK Android <span>↓</span>'; 
       link.removeAttribute('aria-disabled');
     } else {
       link.href = '/'; link.textContent = 'Chưa có bản tải xuống'; link.setAttribute('aria-disabled', 'true');
@@ -86,8 +94,15 @@
     $('history-error').hidden = true;
     const status = $('api-status'); status.textContent = 'Đang kiểm tra API…';
     const health = await api('/healthz').catch((e) => ({ ok: false, error: e.message }));
-    if (health.ok) status.textContent = `API hoạt động · ${health.service || 'Hendy Update Server'}`;
-    else status.textContent = `API lỗi · ${health.error || 'Không thể kết nối'}`;
+    if (health.ok) {
+      status.textContent = `API hoạt động · ${health.service || 'Hendy Update Server'}`;
+      $('summary-server').textContent = 'Online';
+      $('summary-archive-state').textContent = 'Đang tải lịch sử';
+    } else {
+      status.textContent = `API lỗi · ${health.error || 'Không thể kết nối'}`;
+      $('summary-server').textContent = 'Offline';
+      $('summary-archive-state').textContent = 'Không kết nối';
+    }
     const results = await Promise.allSettled(platforms.map((platform) => api(`/api/v1/releases/history?platform=${platform}&channel=stable&limit=20`)));
     cachedHistory = [];
     let successCount = 0;
@@ -107,16 +122,18 @@
     for (const item of cachedHistory) unique.set(`${item.platform}:${item.version}+${item.build}`, item);
     cachedHistory = [...unique.values()].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
     renderHistory();
+    $('summary-archive').textContent = String(cachedHistory.length);
+    $('summary-archive-state').textContent = cachedHistory.length ? 'Bản đã lưu' : 'Chưa có bản lưu';
     $('history-error').hidden = cachedHistory.length > 0;
     $('api-last-checked').textContent = `Kiểm tra lúc ${new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())}`;
     if (!successCount) $('history-error').hidden = false;
-    button.disabled = false; button.textContent = '↻ Làm mới';
+    button.disabled = false; button.innerHTML = '<span>↻</span> Đồng bộ dữ liệu';
   }
   document.querySelectorAll('[data-filter]').forEach((button) => button.addEventListener('click', () => {
     activeFilter = button.dataset.filter;
     document.querySelectorAll('[data-filter]').forEach((item) => item.classList.toggle('active', item === button));
     renderHistory();
   }));
-  $('refresh').addEventListener('click', () => refresh().catch(() => { $('refresh').disabled = false; $('refresh').textContent = '↻ Làm mới'; }));
-  refresh().catch(() => { $('api-status').textContent = 'Không thể kết nối Update Server.'; $('history-error').hidden = false; $('refresh').disabled = false; $('refresh').textContent = '↻ Làm mới'; });
+  $('refresh').addEventListener('click', () => refresh().catch(() => { $('refresh').disabled = false; $('refresh').innerHTML = '<span>↻</span> Đồng bộ dữ liệu'; }));
+  refresh().catch(() => { $('api-status').textContent = 'Không thể kết nối Update Server.'; $('summary-server').textContent = 'Offline'; $('history-error').hidden = false; $('refresh').disabled = false; $('refresh').innerHTML = '<span>↻</span> Đồng bộ dữ liệu'; });
 })();
