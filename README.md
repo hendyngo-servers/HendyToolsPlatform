@@ -1,118 +1,145 @@
-# Hendy Tools Platform — Windows + Android + Website + Update Server
+# Hendy Tools — GitHub → Cloudflare → Direct Download
 
-Repository: `ngogiaidy56-eng/HendyToolsApp`  
-Worker hiện tại: `https://hendytoolsplatform.ngogiaidy56.workers.dev`  
-R2 bucket: `hendy-tool-releases`
+Bộ khung phát hành dành cho người muốn quản lý source bằng giao diện GitHub và để cloud build/deploy. Không cần cài Node.js, Python, Flutter, Inno Setup hoặc chạy lệnh trên máy Windows để build bản phát hành.
 
-Bản cập nhật này bổ sung giao diện Premium xanh đậm cho website, trang Release Console, API lịch sử phát hành/changelog và lưu manifest snapshot vào R2. Windows/Android được build trên GitHub-hosted runners; website + Worker được triển khai bằng Cloudflare Workers Builds đang liên kết với nhánh `main`.
+## Kiến trúc
 
-## Cấu trúc các phần
+- `src/index.ts`: Cloudflare Worker API, đọc manifest và tải binary từ R2.
+- `site/`: giao diện website tiếng Việt, công khai nút tải bộ cài Windows và APK Android.
+- `wrangler.toml`: triển khai Worker và website assets cùng một lần.
+- `hendy_tools_pro.py`: ứng dụng desktop Windows.
+- `mobile_app/`: mã Flutter; workflow tạo thư mục native Android/iOS trong runner cloud.
+- `.github/workflows/deploy-cloudflare.yml`: tự deploy website + API khi push lên `main`.
+- `.github/workflows/build-and-publish-release.yml`: build Windows installer và Android APK trên GitHub-hosted runners, tải gói lên R2, rồi cập nhật manifest.
 
-- `site/index.html`, `site/styles.css`, `site/app.js`: website tải ứng dụng Premium.
-- `site/admin.html`, `site/admin.css`, `site/admin.js`: Release Console chỉ đọc, trạng thái các nền tảng, history/changelog và link tới workflow phát hành đã được GitHub xác thực.
-- `src/index.ts`: Worker API `/healthz`, `/api/v1/releases/latest`, `/api/v1/releases/history`, `/api/v1/releases/download`.
-- `scripts/publish_release.py`: kiểm tra checksum, lưu file phát hành vào R2, ghi snapshot lịch sử rồi cập nhật manifest mới nhất.
-- `.github/workflows/build-and-publish-release.yml`: build installer Windows + APK Android và xuất bản lên R2.
-- `.github/workflows/deploy-cloudflare.yml`: tùy chọn deploy thủ công từ GitHub Actions. Nếu đã dùng Cloudflare Workers Builds tự deploy khi push `main`, không cần chạy đồng thời workflow này.
-- `hendy_tools_pro.py`: ứng dụng Windows có kiểm tra cập nhật khi mở app và tùy chọn kiểm tra thủ công.
-- `mobile_app/`: ứng dụng Flutter Android companion có kiểm tra bản mới và mở luồng tải/cài đặt APK do người dùng xác nhận.
+> iOS được cố ý xử lý khác Android. Website có thể giới thiệu bản iOS và mở URL phân phối, nhưng không thể biến một file IPA bất kỳ thành bản cài công khai cho mọi iPhone. Phân phối website của Apple yêu cầu đủ điều kiện, phê duyệt và giới hạn khu vực; luồng này chưa tự build/ký IPA.
 
-## A. Cập nhật source vào repository hiện tại qua trình duyệt
+## A. Thiết lập một lần (chỉ dùng trình duyệt)
 
-### Cách khuyến nghị: GitHub Codespaces (không dùng CMD trên máy Windows)
+### 1. Đưa source vào GitHub
 
-1. Tải file `HendyToolsApp_Premium_ReleaseConsole_Update.zip` đi kèm với bản cập nhật này.
-2. Mở `https://github.com/ngogiaidy56-eng/HendyToolsApp` → **Code** → **Codespaces** → tạo Codespace từ nhánh `main`.
-3. Trong VS Code chạy trên trình duyệt, tải ZIP vào thư mục gốc Codespace bằng File Explorer (**Upload Files**). ZIP phải nằm ở thư mục gốc Codespace.
-4. Mở Terminal bên trong Codespaces (đây là môi trường cloud, không phải CMD trên PC) và chạy:
+1. Tạo repository mới trên GitHub, ví dụ `hendy-tools-release-platform` (khuyên dùng **Private** trong giai đoạn đầu).
+2. Trên trang repo, chọn **Add file → Upload files** rồi tải lên file `Hendy_GitHub_Cloudflare_Direct_Download_Source.zip` (giữ nguyên tên tệp cũng được), sau đó commit.
+3. Nhấn **Code → Codespaces → Create codespace on main**. Trong terminal bên trong Codespaces (chạy trên cloud, không phải CMD Windows), chạy:
 
    ```bash
-   unzip -o HendyToolsApp_Premium_ReleaseConsole_Update.zip -d .
-   rm -f HendyToolsApp_Premium_ReleaseConsole_Update.zip
-   git status --short
+   unzip -o Hendy_GitHub_Cloudflare_Direct_Download_Source.zip
+   cp -a Hendy_GitHub_Cloudflare_Direct_Download/. .
+   rm -rf Hendy_GitHub_Cloudflare_Direct_Download Hendy_GitHub_Cloudflare_Direct_Download_Source.zip
    git add -A
-   git commit -m "Add premium release console and release history"
-   git push origin main
+   git commit -m "Set up Hendy direct download platform"
+   git push
    ```
 
-5. Kiểm tra **Actions** trên GitHub và **Workers & Pages → Deployments** trên Cloudflare. Nếu trang build của Cloudflare tự triển khai khi có commit mới, chờ deployment báo thành công.
+   Nếu tên thư mục giải nén hiển thị khác, dùng đúng tên đó ở lệnh `cp` và `rm`. Sau bước này các file như `README.md`, `wrangler.toml`, `src/`, `site/`, `mobile_app/`, `scripts/` và `.github/` phải nằm ở thư mục gốc repo.
+4. Không commit token, keystore, mật khẩu, file `credentials.json` hay `token.json`.
 
-ZIP overlay có file nằm đúng đường dẫn cần thay đổi; không upload ZIP như một file bình thường rồi để nó nguyên trong repository. Đừng thay toàn bộ repo bằng một thư mục con có tên ZIP.
+Từ sau đó, dùng GitHub web editor/Codespaces để sửa code. Mỗi commit vào `main` có thay đổi ở `src/`, `site/` hoặc file cấu hình sẽ kích hoạt workflow deploy.
 
-## B. Cấu hình Cloudflare một lần
+### 2. Tạo R2 bucket
 
-Trong Cloudflare Workers & Pages, Worker phải có tên `hendytoolsplatform`. File `wrangler.toml` cũng đặt `name = "hendytoolsplatform"` để tránh cảnh báo tên khác nhau.
+Trong Cloudflare Dashboard:
 
-R2 bucket cần khớp đúng:
+1. Mở **R2 Object Storage**.
+2. Tạo bucket tên chính xác `hendy-tool-releases`.
+3. Giữ bucket private. Website tải qua Worker API; không cần bật public bucket hoặc public `r2.dev`.
 
-```toml
-[[r2_buckets]]
-binding = "RELEASES"
-bucket_name = "hendy-tool-releases"
-```
+Workflow deploy cũng thử tạo bucket nếu bucket chưa tồn tại, nhưng cần quyền R2 phù hợp.
 
-Ảnh build hiện tại của bạn đã cho thấy Cloudflare nhận `env.RELEASES (hendy-tool-releases)` và `env.ASSETS`; chỉ cần giữ đúng các giá trị này.
+### 3. Thêm GitHub Actions secrets
 
-Trong Cloudflare Workers Builds, build/deploy command tối giản có thể là:
+Trong GitHub repo → **Settings → Secrets and variables → Actions → Secrets**, tạo:
+
+- `CLOUDFLARE_API_TOKEN`: API Token cho phép quản lý Workers và ghi R2 của đúng tài khoản.
+- `CLOUDFLARE_ACCOUNT_ID`: Account ID Cloudflare.
+
+Tạo token có quyền tối thiểu thích hợp cho deploy Worker và R2 write/edit. Không đặt token trong source code hoặc file của website. Bật MFA trên tài khoản Cloudflare.
+
+### 4. Deploy lần đầu
+
+1. Mở tab **Actions** trong GitHub.
+2. Chọn **Deploy Hendy Website + Update API**.
+3. Nhấn **Run workflow** và chọn branch `main`.
+4. Khi workflow thành công, mở URL `workers.dev` của Worker `hendy-tools-download` trong Cloudflare Dashboard.
+5. Kiểm tra `<WORKER_URL>/healthz`. Kết quả phải có `"ok": true`.
+
+Website tải ứng dụng và API cùng dùng một hostname. Không cần tạo Cloudflare Pages project riêng cho mẫu này; Worker Static Assets phục vụ website và API Worker trả manifest/download.
+
+### 5. Tạo khóa ký Android (một lần, trong Codespaces)
+
+APK direct-download phải dùng cùng một khóa ký giữa các phiên bản để Android cho phép cập nhật đè bản cũ. Tạo khóa một lần trong terminal Codespaces, **không đưa file keystore vào repository**:
 
 ```bash
-npx wrangler deploy
+keytool -genkeypair -v -keystore hendy-release-key.jks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias hendy_release
+base64 -w 0 hendy-release-key.jks
 ```
 
-Không cần `pip install -r requirements.txt` để deploy Worker: `requirements.txt` phục vụ ứng dụng desktop Python, không phải Worker TypeScript. Có thể bỏ lệnh pip khỏi cấu hình build Cloudflare để giảm thời gian và tránh cài thư viện desktop ở môi trường server.
+Khi keytool hỏi mật khẩu, hãy đặt mật khẩu mạnh và lưu an toàn. Nên dùng cùng mật khẩu cho store và key password nếu muốn đơn giản hóa.
 
-## C. GitHub Actions Secrets / Variables
+Trong GitHub repo → **Settings → Secrets and variables → Actions → Secrets**, tạo bốn secrets:
 
-Để build và publish release từ GitHub Actions:
-
-**Settings → Secrets and variables → Actions → Secrets** tạo:
-
-- `CLOUDFLARE_API_TOKEN`: token có quyền tối thiểu cần thiết để deploy Worker và ghi object vào R2.
-- `CLOUDFLARE_ACCOUNT_ID`: Account ID Cloudflare.
-- `ANDROID_KEYSTORE_BASE64`: keystore Android đã mã hóa base64.
-- `ANDROID_KEY_ALIAS`: alias của khóa ký.
+- `ANDROID_KEYSTORE_BASE64`: toàn bộ chuỗi base64 mà lệnh thứ hai in ra.
+- `ANDROID_KEY_ALIAS`: `hendy_release` (hoặc alias bạn đã dùng).
 - `ANDROID_STORE_PASSWORD`: mật khẩu keystore.
-- `ANDROID_KEY_PASSWORD`: mật khẩu khóa.
+- `ANDROID_KEY_PASSWORD`: mật khẩu key.
 
-**Settings → Secrets and variables → Actions → Variables** tạo:
+Sau khi đã lưu secrets, xóa `hendy-release-key.jks` khỏi Codespaces và không đưa chuỗi base64 vào issue, pull request, mã nguồn hoặc log. Không làm mất khóa/mật khẩu: các bản Android cập nhật phải được ký bằng cùng khóa. Nếu mất khóa, người dùng có thể phải gỡ bản cũ (và mất dữ liệu cục bộ) trước khi cài một ứng dụng được ký bằng khóa khác.
 
-- `HENDY_UPDATE_BASE_URL` = `https://hendytoolsplatform.ngogiaidy56.workers.dev`
+### 6. Thêm URL Worker vào GitHub Variables
 
-Thay URL ở trên nếu bạn dùng custom domain hoặc Worker URL khác. Không đưa API token, password, keystore hoặc chuỗi base64 của keystore vào source code, issue, log hay website.
+Trong GitHub repo → **Settings → Secrets and variables → Actions → Variables → New repository variable**:
 
-### Khóa ký Android
+- Name: `HENDY_UPDATE_BASE_URL`
+- Value: URL Worker thật, ví dụ `https://hendy-tools-download.<subdomain-tai-khoan>.workers.dev` (thay bằng URL hiển thị trong Dashboard, không dùng nguyên ví dụ).
 
-APK tải trực tiếp phải được ký cùng một khóa qua các phiên bản để Android chấp nhận cài đè bản cũ. Nếu chưa có keystore, tạo một lần trong môi trường cloud an toàn (ví dụ Codespaces), lưu bốn giá trị trên thành GitHub Secrets và giữ bản dự phòng mã hóa ngoại tuyến. Không commit file `.jks`/`.keystore` vào repository. Không làm mất khóa ký.
+Không thêm dấu `/` ở cuối. URL này được ghi vào bản Windows và truyền vào bản Flutter lúc build. Nếu đổi custom domain/Worker URL, cập nhật variable trước lần phát hành kế tiếp.
 
-## D. Phát hành phiên bản Windows + Android
+## B. Phát hành Windows + Android mà không dùng máy Windows để build
 
-1. Mở repository → **Actions** → **Build and publish Hendy release**.
-2. Nhấn **Run workflow**.
-3. Nhập phiên bản dạng `3.2.0`, build number lớn hơn bản trước, ghi chú changelog và minimum supported version; chọn mandatory chỉ khi thật sự cần.
-4. Workflow tạo installer Windows trên runner Windows và APK trên runner Ubuntu, tính SHA-256, upload binary lên R2, lưu manifest snapshot trong `history/<platform>/<channel>/`, rồi cập nhật manifest mới nhất.
-5. Mở `/admin.html` để kiểm tra release state, changelog và history; mở `/` để kiểm tra các nút tải xuống.
+Sau khi deploy Worker và thêm variable nói trên:
 
-Ví dụ URL:
+1. Mở GitHub → **Actions**.
+2. Chọn **Build and publish Hendy release** → **Run workflow**.
+3. Nhập version, build number tăng dần và ghi chú; ví dụ `3.2.0`, build `30200`.
+4. Nhấn **Run workflow**. GitHub-hosted runner sẽ build Windows `.exe`/installer và Android `.apk`; sau đó upload packages/manifest lên R2.
+5. Mở website Worker để thấy phiên bản mới và nút tải trực tiếp.
 
-- Website: `https://hendytoolsplatform.ngogiaidy56.workers.dev/`
-- Release Console: `https://hendytoolsplatform.ngogiaidy56.workers.dev/admin.html`
-- Health: `https://hendytoolsplatform.ngogiaidy56.workers.dev/healthz`
-- Latest Windows: `/api/v1/releases/latest?platform=windows&channel=stable&current=0.0.0&build=0`
-- Latest Android: `/api/v1/releases/latest?platform=android&channel=stable&current=0.0.0&build=0`
-- Windows download: `/api/v1/releases/download?platform=windows&channel=stable`
-- Android download: `/api/v1/releases/download?platform=android&channel=stable`
-- Release history: `/api/v1/releases/history?platform=windows&channel=stable&limit=20`
+Lần sau chỉ việc chọn **Run workflow** với version/build mới. Người dùng có thể tải `.exe` trực tiếp trên Windows và `.apk` trực tiếp trên Android mà không qua Microsoft Store/Google Play. Trên Android, người dùng có thể phải cho phép trình duyệt cài ứng dụng từ nguồn này và xác nhận cài đặt.
 
-## E. Trang quản trị phát hành và bảo mật
+## C. Tải trực tiếp và cập nhật
 
-`/admin.html` là Release Console: xem phiên bản/changelog/historic manifests và mở GitHub Actions để tạo bản phát hành. Bản này **không** chứa API token, keystore hay một endpoint upload công khai. Quyền phát hành thực sự được bảo vệ bởi quyền truy cập GitHub Actions của repository; người dùng cần đăng nhập GitHub và có quyền chạy workflow để publish.
+- `GET /api/v1/releases/latest?platform=windows&channel=stable&current=0.0.0&build=0`
+- `GET /api/v1/releases/latest?platform=android&channel=stable&current=0.0.0&build=0`
+- `GET /api/v1/releases/download?platform=windows&channel=stable`
+- `GET /api/v1/releases/download?platform=android&channel=stable`
+- `GET /healthz`
 
-Việc thay đổi metadata phiên bản/changelog diễn ra thông qua input của workflow, không qua JavaScript công khai. Đây là lựa chọn an toàn hơn so với nhúng một admin token cố định vào `admin.js`.
+Tải binary dùng tên file/manifest từ bản phát hành hiện hành. Worker chỉ chấp nhận đường dẫn object đã xác thực trong manifest. Publisher tải object trước rồi mới thay manifest latest để tránh trỏ tới file chưa tải xong.
 
-## F. Hạn chế nền tảng và xác minh
+## D. Ghi chú bảo mật và giới hạn
 
-- Windows: website phân phối installer EXE trực tiếp. Nên ký Authenticode trước khi phân phối rộng; SHA-256 chỉ xác nhận file khớp với manifest, không chứng minh danh tính nhà phát hành.
-- Android: website phân phối APK trực tiếp. Người dùng có thể phải cho phép cài ứng dụng từ trình duyệt và xác nhận cài đặt. Updater chỉ thông báo/tải/mở trình cài đặt; không tự cài lén trong nền.
-- iOS: Release Console chỉ hiển thị thông tin/phương thức phân phối đã cấu hình. Không thể đảm bảo cài IPA trực tiếp cho mọi iPhone chỉ bằng hosting; cần phương thức phân phối và ký số được Apple cho phép.
-- History: các release xuất bản từ sau khi có snapshot sẽ lưu lịch sử. Những phiên bản đã công bố trước đó không thể tự tái tạo snapshot nếu chưa có manifest cũ.
-- Mã nguồn được kiểm tra cú pháp và cấu trúc trong môi trường làm việc; cần chạy workflow thật sau khi áp dụng và thêm secrets để xác nhận build EXE/APK và quyền R2 của tài khoản bạn.
+1. `SHA-256` kiểm tra tính toàn vẹn so với manifest; không thay thế chữ ký số nhà phát hành. Ký bộ cài Windows bằng Authenticode trước khi phân phối công khai để tăng khả năng xác minh nguồn phát hành.
+2. APK tải trực tiếp vẫn cần chữ ký Android. Bản cập nhật phải được ký bằng cùng key phù hợp với bản đã cài và dùng package ID/version code nhất quán.
+3. Workflow release chỉ nên chạy bởi chủ repository/người phát hành tin cậy. Bảo vệ branch `main`, bật MFA và giới hạn quyền ghi.
+4. Mẫu này chưa cung cấp giao diện upload có mật khẩu trên website công khai. Việc phát hành file được chạy từ GitHub Actions, nơi Cloudflare token lưu dưới dạng encrypted secret; cách này tránh đưa quyền ghi R2 vào JavaScript công khai.
+5. iOS: chỉ đặt URL iOS vào manifest khi đã có phương thức phân phối hợp lệ (ví dụ App Store/TestFlight hoặc website distribution đủ điều kiện và được Apple chấp thuận). File IPA không thể được cài tự do trên mọi thiết bị iOS chỉ nhờ hosting.
+6. Android cho phép phát hành APK từ website, nhưng người dùng phải xác nhận cài ứng dụng ngoài cửa hàng. Google cũng đang triển khai xác minh nhà phát triển cho phân phối Android ngoài Google Play: từ 30/09/2026 ở một số khu vực và dự kiến mở rộng toàn cầu trong năm 2027. Hãy theo dõi hướng dẫn Android Developer Console nếu phân phối rộng rãi.
+7. Chưa có tài khoản Cloudflare/GitHub được kết nối trong gói này; bạn vẫn cần thực hiện thiết lập một lần trên Dashboard. Mã nguồn không tự tạo tài nguyên trên tài khoản người dùng khi chưa được cấp quyền.
+
+## Cấu trúc chính
+
+```text
+.
+├── .github/workflows/
+│   ├── deploy-cloudflare.yml
+│   └── build-and-publish-release.yml
+├── src/index.ts
+├── site/                  # Download website
+├── scripts/               # Stamp versions + publish manifests
+├── installer/HendyTools.iss
+├── mobile_app/            # Flutter source
+├── hendy_tools_pro.py
+├── requirements.txt
+├── package.json
+└── wrangler.toml
+```

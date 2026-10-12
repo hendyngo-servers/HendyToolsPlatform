@@ -1,4 +1,4 @@
-name = "hendytoolsplatform"
+name = "hendy-tools-download"
 main = "src/index.ts"
 compatibility_date = "2026-10-12"
 workers_dev = true

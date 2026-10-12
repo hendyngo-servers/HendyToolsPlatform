@@ -22,7 +22,7 @@ const _pageBg = Color(0xFF0B1120);
 const _panel = Color(0xFF141F33);
 const _panelAlt = Color(0xFF192740);
 const _muted = Color(0xFF9AAAC4);
-const _updateBaseUrl = String.fromEnvironment('HENDY_UPDATE_BASE_URL', defaultValue: 'https://hendytoolsplatform.ngogiaidy56.workers.dev');
+const _updateBaseUrl = String.fromEnvironment('HENDY_UPDATE_BASE_URL', defaultValue: '');
 const _updateChannel = String.fromEnvironment('HENDY_UPDATE_CHANNEL', defaultValue: 'stable');
 
 class HendyToolsMobileApp extends StatelessWidget {

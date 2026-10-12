@@ -6,11 +6,6 @@ interface R2ObjectBodyLike {
 }
 interface R2BucketLike {
   get(key: string): Promise<R2ObjectBodyLike | null>;
-  list(options?: { prefix?: string; limit?: number; cursor?: string }): Promise<{
-    objects: Array<{ key: string }>;
-    truncated: boolean;
-    cursor?: string;
-  }>;
 }
 interface AssetsBindingLike {
   fetch(request: Request): Promise<Response>;
@@ -83,7 +78,12 @@ function compareVersions(a: string, b: string): number {
   if (a.includes("-") !== b.includes("-")) return a.includes("-") ? -1 : 1;
   return 0;
 }
-function validateManifestCandidate(candidate: unknown, platform: Platform, channel: Channel): ReleaseManifest {
+async function loadManifest(env: Env, platform: Platform, channel: Channel): Promise<ReleaseManifest | null> {
+  const object = await env.RELEASES.get(`manifests/${platform}-${channel}.json`);
+  if (!object) return null;
+  let candidate: unknown;
+  try { candidate = JSON.parse(await object.text()); }
+  catch { throw new Error("Release manifest is not valid JSON"); }
   if (!candidate || typeof candidate !== "object") throw new Error("Release manifest is not an object");
   const m = candidate as Partial<ReleaseManifest>;
   if (m.schemaVersion !== 1 || m.platform !== platform || m.channel !== channel) {
@@ -92,7 +92,6 @@ function validateManifestCandidate(candidate: unknown, platform: Platform, chann
   if (typeof m.version !== "string" || !VERSION_RE.test(m.version)) throw new Error("Invalid release version");
   if (typeof m.build !== "number" || !Number.isSafeInteger(m.build) || m.build < 1) throw new Error("Invalid release build");
   if (typeof m.minSupportedVersion !== "string" || !VERSION_RE.test(m.minSupportedVersion)) throw new Error("Invalid minSupportedVersion");
-  if (typeof m.publishedAt !== "string" || Number.isNaN(Date.parse(m.publishedAt))) throw new Error("Invalid publishedAt");
   if (typeof m.mandatory !== "boolean" || !Array.isArray(m.releaseNotes) || m.releaseNotes.some((item) => typeof item !== "string")) {
     throw new Error("Invalid release metadata");
   }
@@ -116,17 +115,6 @@ function validateManifestCandidate(candidate: unknown, platform: Platform, chann
     if (store.protocol !== "https:") throw new Error("storeUrl must use HTTPS");
   }
   return m as ReleaseManifest;
-}
-async function readManifestObject(object: R2ObjectBodyLike, platform: Platform, channel: Channel): Promise<ReleaseManifest> {
-  let candidate: unknown;
-  try { candidate = JSON.parse(await object.text()); }
-  catch { throw new Error("Release manifest is not valid JSON"); }
-  return validateManifestCandidate(candidate, platform, channel);
-}
-async function loadManifest(env: Env, platform: Platform, channel: Channel): Promise<ReleaseManifest | null> {
-  const object = await env.RELEASES.get(`manifests/${platform}-${channel}.json`);
-  if (!object) return null;
-  return readManifestObject(object, platform, channel);
 }
 function versionIsBelowMinimum(current: string, minimum: string): boolean {
   if (!VERSION_RE.test(current)) return true;
@@ -171,62 +159,6 @@ async function handleLatest(request: Request, env: Env): Promise<Response> {
     downloadUrl: hasDirectArtifact ? `${url.origin}/api/v1/releases/download?platform=${platformValue}&channel=${release.channel}` : null,
   });
 }
-function publicHistoryItem(m: ReleaseManifest): Record<string, unknown> {
-  return {
-    appId: m.appId,
-    platform: m.platform,
-    channel: m.channel,
-    version: m.version,
-    build: m.build,
-    publishedAt: m.publishedAt,
-    mandatory: m.mandatory,
-    minSupportedVersion: m.minSupportedVersion,
-    releaseNotes: m.releaseNotes,
-    storeUrl: m.storeUrl ?? null,
-    artifact: m.artifact ? {
-      fileName: m.artifact.fileName,
-      sha256: m.artifact.sha256,
-      size: m.artifact.size,
-      contentType: m.artifact.contentType ?? "application/octet-stream",
-      signerThumbprint: m.artifact.signerThumbprint ?? null,
-    } : null,
-    downloadUrl: m.platform !== "ios" ? `/api/v1/releases/download?platform=${m.platform}&channel=${m.channel}` : m.storeUrl ?? null,
-  };
-}
-async function handleHistory(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const platformValue = url.searchParams.get("platform");
-  const channelValue = url.searchParams.get("channel") ?? "stable";
-  if (!validPlatform(platformValue)) return errorResponse("platform must be windows, android, or ios", 400);
-  if (!validChannel(channelValue)) return errorResponse("channel must be stable or beta", 400);
-  const limitRaw = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
-  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(50, limitRaw)) : 20;
-  try {
-    const prefix = `history/${platformValue}/${channelValue}/`;
-    const listed = await env.RELEASES.list({ prefix, limit: 1000 });
-    const keys = listed.objects.map((item) => item.key).filter((key) => key.endsWith(".json")).sort().reverse().slice(0, 50);
-    const archived = await Promise.all(keys.map(async (key) => {
-      const object = await env.RELEASES.get(key);
-      if (!object) return null;
-      try { return await readManifestObject(object, platformValue, channelValue); }
-      catch { return null; }
-    }));
-    let current: ReleaseManifest | null = null;
-    try { current = await loadManifest(env, platformValue, channelValue); }
-    catch { /* An invalid current manifest is reported only by the latest endpoint. */ }
-    const candidates = [...archived.filter((item): item is ReleaseManifest => item !== null), ...(current ? [current] : [])];
-    const unique = new Map<string, ReleaseManifest>();
-    for (const item of candidates) unique.set(`${item.version}+${item.build}`, item);
-    const releases = [...unique.values()]
-      .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
-      .slice(0, limit)
-      .map(publicHistoryItem);
-    return json({ platform: platformValue, channel: channelValue, count: releases.length, releases });
-  } catch (error) {
-    return errorResponse(`Could not read release history: ${error instanceof Error ? error.message : "unknown error"}`, 500);
-  }
-}
-
 async function handleDownload(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const platformValue = url.searchParams.get("platform");
@@ -265,11 +197,10 @@ export default {
     }});
     const url = new URL(request.url);
     if (url.pathname === "/healthz" && (request.method === "GET" || request.method === "HEAD")) {
-      return json({ ok: true, service: "hendytoolsplatform", time: new Date().toISOString() });
+      return json({ ok: true, service: "hendy-tools-download", time: new Date().toISOString() });
     }
     if (request.method === "GET" || request.method === "HEAD") {
       if (url.pathname === "/api/v1/releases/latest") return handleLatest(request, env);
-      if (url.pathname === "/api/v1/releases/history") return handleHistory(request, env);
       if (url.pathname === "/api/v1/releases/download") return handleDownload(request, env);
     }
     if (request.method !== "GET" && request.method !== "HEAD") return errorResponse("Method not allowed", 405);
