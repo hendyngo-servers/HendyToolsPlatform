@@ -1,0 +1,6 @@
+{
+  "name": "Hendy Tools — Download Center & Release Console",
+  "description": "Trung tâm tải về và bảng điều khiển quản lý phát hành chính thức của Hendy Tools cho Windows, Android và iOS.",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
