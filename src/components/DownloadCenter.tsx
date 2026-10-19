@@ -3,12 +3,11 @@ import { ReleaseStore, formatFileSize, formatSimpleDate } from '../services/rele
 import { ReleaseManifest } from '../types';
 
 interface Props {
-  onOpenConsole: () => void;
-  onOpenServerPanel: () => void;
+  onOpenAdminPanel: (tab?: string) => void;
   onOpenIntegrity: () => void;
 }
 
-export const DownloadCenter: React.FC<Props> = ({ onOpenConsole, onOpenServerPanel, onOpenIntegrity }) => {
+export const DownloadCenter: React.FC<Props> = ({ onOpenAdminPanel, onOpenIntegrity }) => {
   const [windowsRelease, setWindowsRelease] = useState<ReleaseManifest | null>(null);
   const [androidRelease, setAndroidRelease] = useState<ReleaseManifest | null>(null);
   const [iosRelease, setIosRelease] = useState<ReleaseManifest | null>(null);
@@ -102,13 +101,10 @@ export const DownloadCenter: React.FC<Props> = ({ onOpenConsole, onOpenServerPan
           <button
             type="button"
             className="header-admin-cta"
-            style={{ color: '#82baff', borderColor: 'rgba(52, 125, 255, 0.3)', background: 'rgba(52, 125, 255, 0.08)' }}
-            onClick={onOpenServerPanel}
+            style={{ color: '#73e4d0', borderColor: 'rgba(115, 228, 208, 0.3)', background: 'rgba(115, 228, 208, 0.08)' }}
+            onClick={() => onOpenAdminPanel('server-overview')}
           >
-            Server Panel Plus <span>⚙</span>
-          </button>
-          <button type="button" className="header-admin-cta" onClick={onOpenConsole}>
-            Release Console <span>↗</span>
+            Bảng Quản trị Server Plus <span>⚙</span>
           </button>
           <a className="header-cta" href="#downloads">
             Tải ứng dụng <span aria-hidden="true">↗</span>
@@ -518,9 +514,9 @@ export const DownloadCenter: React.FC<Props> = ({ onOpenConsole, onOpenServerPan
             <div className="archive-copy">
               <small>RELEASE ARCHIVE</small>
               <h3>Mỗi phiên bản đều có lịch sử.</h3>
-              <p>Tra cứu changelog và phiên bản cũ qua Release Console.</p>
+              <p>Tra cứu changelog và phiên bản cũ qua Server & Release Management Panel Plus.</p>
             </div>
-            <button type="button" className="button button-secondary" onClick={onOpenConsole}>
+            <button type="button" className="button button-secondary" onClick={() => onOpenAdminPanel('history')}>
               Mở lịch sử phát hành <span>↗</span>
             </button>
           </div>
@@ -582,8 +578,8 @@ export const DownloadCenter: React.FC<Props> = ({ onOpenConsole, onOpenServerPan
         <div className="footer-status">
           <i className="status-orb" /> Máy chủ phát hành phản hồi
         </div>
-        <button type="button" className="footer-admin" onClick={onOpenConsole}>
-          Release Console ↗
+        <button type="button" className="footer-admin" onClick={() => onOpenAdminPanel('server-overview')}>
+          Bảng Quản trị Server Plus ↗
         </button>
       </footer>
     </div>
