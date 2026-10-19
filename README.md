@@ -73,6 +73,47 @@ Hệ thống được tái cấu trúc thành hai thực thể độc lập hoà
 
 ---
 
+## 3. Điều Hướng Tên Miền Đa Nền Tảng (Multi-Platform Domain & URL Router)
+
+Hệ thống cho phép tận dụng trực tiếp các tên miền được cấp phát tự động sau khi triển khai trên **Cloudflare Pages**, **Cloudflare Workers**, **Render.com** hoặc **GitHub Pages** để tự động phân luồng người dùng:
+
+| Tên miền / URL | Nền tảng | Đích điều hướng | Chức năng chính |
+| :--- | :--- | :--- | :--- |
+| `hendytools.pages.dev` | Cloudflare Pages | **Trung tâm Tải về Công khai** | Cổng phân phối phần mềm cho người dùng cuối |
+| `admin-hendytools.pages.dev` | Cloudflare Pages | **Bảng Quản trị Server Plus** | Không gian quản trị và điều hành máy chủ |
+| `hendy-tools-platform.onrender.com` | Render.com | **Trung tâm Tải về Công khai** | Mirror dự phòng tải tệp tin chính thức |
+| `hendy-admin.onrender.com` | Render.com | **Bảng Quản trị Server Plus** | Trạm quản trị dự phòng trên hạ tầng Render |
+| `hendy-api.workers.dev` | Cloudflare Workers | **API Gateway & Check Update** | Serverless Endpoint kiểm tra phiên bản mới |
+| `ngogiaidy3.github.io` | GitHub Pages | **Trung tâm Tải về Công khai** | Cổng phân phối tĩnh từ kho lưu trữ GitHub |
+| `admin.hendytools.com` | Custom Domain | **Bảng Quản trị Server Plus** | Tên miền doanh nghiệp nội bộ (Proxy Cloudflare) |
+| `get.hendytools.com` | Custom Domain | **Trung tâm Tải về Công khai** | Tên miền người dùng tải phần mềm chính thức |
+
+### Quy tắc Nhận diện & Điều Hướng Tự Động (Routing Logic):
+1. **Theo Subdomain / Hostname**:
+   - Nếu tên miền bắt đầu hoặc chứa các từ khóa: `admin`, `console`, `panel`, `server` -> Tự động chuyển thẳng tới **Bảng Quản trị Server Plus**.
+   - Nếu tên miền bắt đầu bằng `download`, `get`, `portal`, `app`, hoặc là miền người dùng -> Tự động chuyển tới **Trung tâm Tải về**.
+2. **Theo Đường dẫn URL (Path Navigation)**:
+   - Các đường dẫn `/admin`, `/console`, `/server`, `/manage` (kèm các tab sâu như `/admin/domains`, `/admin/apps`, `/admin/telemetry`) tự động mở Bảng Quản trị.
+   - Các đường dẫn `/`, `/download`, `/portal`, `/releases` mở Trung tâm Tải về.
+3. **Theo Tham số truy vấn (Query Params) & Hash**:
+   - `?interface=admin` hoặc `#admin`, `#domains`, `#apps` -> Giao diện Quản trị.
+   - `?interface=download` hoặc `#download`, `#top` -> Giao diện Người dùng.
+
+---
+
+## 4. Các Thành Phần & Ứng Dụng Mở Rộng (Software Components & Add-ons)
+
+Tích hợp trực tiếp trong Bảng Quản Trị Server Plus để nâng cao năng lực vận hành:
+1. **Webhook Event Dispatcher (v2.4.0)**: Tự động gửi thông báo khi có bản phát hành mới qua HTTP POST tới Discord, Slack hoặc Telegram.
+2. **Cloudflare WAF & Edge Shield (v3.1.0)**: Phòng vệ DDoS, lọc lưu lượng độc hại và giới hạn tần suất truy cập API (Rate Limiting).
+3. **Cloudflare R2 Multi-Region Sync (v1.8.2)**: Đồng bộ hóa các gói nhị phân EXE, APK giữa các bucket Cloudflare R2 và AWS S3 dự phòng.
+4. **System Snapshot & Config Vault (v1.2.0)**: Xuất và khôi phục toàn bộ trạng thái cấu hình hệ thống, tên miền và release dưới dạng JSON.
+5. **Global Edge PoP Latency Telemetry (v2.0.1)**: Giám sát thời gian thực độ trễ mạng và tỷ lệ Cache Hit Ratio tại các điểm biên CDN (Singapore, Tokyo, Frankfurt, San Francisco, Sydney).
+6. **Compliance Audit Trail (v1.5.0)**: Ghi vết toàn bộ hành vi quản trị, thay đổi cấu hình tường lửa và công bố phiên bản.
+
+---
+
+
 ## Hướng dẫn Triển khai Production (Deployment Guides)
 
 ### A. Triển khai trên Cloudflare (https://dash.cloudflare.com/)

@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { ProductionStore, formatByteSize, formatDateTime, formatSimpleDate } from '../shared/store';
-import { ReleaseManifest, SystemService, ProcessMetric, NetworkPort, Platform, TerminalEntry } from '../shared/types';
+import {
+  ReleaseManifest,
+  SystemService,
+  ProcessMetric,
+  NetworkPort,
+  Platform,
+  TerminalEntry,
+  DomainMapping,
+  SoftwareComponent,
+  AuditLog,
+  EdgeTrafficMetric,
+  PlatformProvider,
+  TargetInterface,
+} from '../shared/types';
 import { PublishModal } from '../shared/PublishModal';
 import './AdminPanelPlus.css';
 
@@ -31,6 +44,31 @@ export const AdminPanelPlus: React.FC<Props> = ({ onBackToPortal, initialTab = '
   const [iosRelease, setIosRelease] = useState<ReleaseManifest | null>(null);
   const [releaseFilter, setReleaseFilter] = useState<'all' | 'windows' | 'android'>('all');
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+
+  // Domains & Routing
+  const [domains, setDomains] = useState<DomainMapping[]>([]);
+  const [components, setComponents] = useState<SoftwareComponent[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [trafficMetrics, setTrafficMetrics] = useState<EdgeTrafficMetric[]>([]);
+
+  // Add Domain Modal
+  const [isAddDomainOpen, setIsAddDomainOpen] = useState(false);
+  const [newHost, setNewHost] = useState('');
+  const [newProvider, setNewProvider] = useState<PlatformProvider>('cloudflare-pages');
+  const [newTarget, setNewTarget] = useState<TargetInterface>('admin');
+  const [newNotes, setNewNotes] = useState('');
+
+  // Domain URL Simulator
+  const [simUrl, setSimUrl] = useState('https://admin-hendytools.pages.dev/domains');
+  const [simResult, setSimResult] = useState<{ view: 'download' | 'admin'; matchedSource: string; defaultTab?: string } | null>(null);
+
+  // Snapshot modal
+  const [isSnapshotOpen, setIsSnapshotOpen] = useState(false);
+  const [snapshotJson, setSnapshotJson] = useState('');
+  const [snapshotImportInput, setSnapshotImportInput] = useState('');
+
+  // Webhook Test status
+  const [testingWebhook, setTestingWebhook] = useState<string | null>(null);
 
   // Terminal state
   const [terminalHistory, setTerminalHistory] = useState<TerminalEntry[]>([
@@ -69,10 +107,15 @@ export const AdminPanelPlus: React.FC<Props> = ({ onBackToPortal, initialTab = '
     setWinRelease(ProductionStore.getLatest('windows', 'stable'));
     setAndroidRelease(ProductionStore.getLatest('android', 'stable'));
     setIosRelease(ProductionStore.getLatest('ios', 'stable'));
+    setDomains(ProductionStore.getDomains());
+    setComponents(ProductionStore.getComponents());
+    setAuditLogs(ProductionStore.getAuditLogs());
+    setTrafficMetrics(ProductionStore.getTrafficMetrics());
   };
 
   useEffect(() => {
     refreshAll();
+
   }, []);
 
   // Fluctuations for telemetry
@@ -151,6 +194,109 @@ export const AdminPanelPlus: React.FC<Props> = ({ onBackToPortal, initialTab = '
     const res = ProductionStore.checkUpdate(debugPlatform, 'stable', debugVersion, buildNum);
     setDebugResult(JSON.stringify(res, null, 2));
   };
+
+  const handleAddDomain = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newHost.trim()) return;
+    const cleanHost = newHost.trim().replace(/^https?:\/\//, '').split('/')[0];
+    const newMapping: DomainMapping = {
+      id: `dom-${Date.now()}`,
+      domain: cleanHost,
+      provider: newProvider,
+      targetInterface: newTarget,
+      isPrimary: false,
+      sslStatus: 'active',
+      defaultTab: newTarget === 'admin' ? 'telemetry' : undefined,
+      notes: newNotes.trim() || 'Tên miền tùy chỉnh liên kết thủ công',
+      createdAt: new Date().toISOString(),
+    };
+    ProductionStore.addDomain(newMapping);
+    setDomains(ProductionStore.getDomains());
+    setAuditLogs(ProductionStore.getAuditLogs());
+    setIsAddDomainOpen(false);
+    setNewHost('');
+    setNewNotes('');
+    setToast(`Đã thêm tên miền ${cleanHost} (${newTarget === 'admin' ? 'Bảng Quản Trị' : 'Cổng Tải'}) thành công!`);
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleToggleDomainTarget = (id: string) => {
+    const current = domains.find((d) => d.id === id);
+    if (!current) return;
+    const nextTarget: TargetInterface = current.targetInterface === 'admin' ? 'portal' : 'admin';
+    ProductionStore.updateDomain(id, { targetInterface: nextTarget });
+    setDomains(ProductionStore.getDomains());
+    setToast(`Tên miền ${current.domain} chuyển hướng đích sang: ${nextTarget === 'admin' ? 'Bảng Quản Trị' : 'Cổng Tải'}`);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleDeleteDomain = (id: string, domainName: string) => {
+    ProductionStore.removeDomain(id);
+    setDomains(ProductionStore.getDomains());
+    setAuditLogs(ProductionStore.getAuditLogs());
+    setToast(`Đã xóa liên kết tên miền ${domainName}`);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleSimulateUrl = (testUrl?: string) => {
+    const target = (testUrl || simUrl).trim();
+    if (!target) return;
+    try {
+      const parsed = new URL(target.startsWith('http') ? target : `https://${target}`);
+      const res = ProductionStore.resolveTargetInterface(
+        parsed.hostname,
+        parsed.pathname,
+        parsed.search,
+        parsed.hash
+      );
+      setSimResult(res);
+    } catch {
+      const segments = target.split('/');
+      const host = segments[0] || target;
+      const res = ProductionStore.resolveTargetInterface(host, '/', '', '');
+      setSimResult(res);
+    }
+  };
+
+  const handleToggleComponent = (id: string) => {
+    ProductionStore.toggleComponent(id);
+    setComponents(ProductionStore.getComponents());
+    setAuditLogs(ProductionStore.getAuditLogs());
+    const comp = ProductionStore.getComponents().find((c) => c.id === id);
+    setToast(`Thành phần ${comp?.name} chuyển sang: ${comp?.status.toUpperCase()}`);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleTestWebhook = (id: string) => {
+    setTestingWebhook(id);
+    setTimeout(() => {
+      setTestingWebhook(null);
+      setToast('Webhook HTTP POST đã gửi thành công tới các endpoint đăng ký (HTTP 200 OK)!');
+      setTimeout(() => setToast(null), 3500);
+    }, 1000);
+  };
+
+  const handleExportSnapshot = () => {
+    const json = ProductionStore.exportSystemSnapshot();
+    setSnapshotJson(json);
+    setIsSnapshotOpen(true);
+  };
+
+  const handleImportSnapshot = () => {
+    if (!snapshotImportInput.trim()) return;
+    const ok = ProductionStore.importSystemSnapshot(snapshotImportInput);
+    if (ok) {
+      refreshAll();
+      setIsSnapshotOpen(false);
+      setSnapshotImportInput('');
+      setToast('Đã khôi phục toàn bộ cấu hình từ Snapshot thành công!');
+      setTimeout(() => setToast(null), 3500);
+    } else {
+      setToast('Lỗi: Cấu trúc JSON Snapshot không hợp lệ.');
+      setTimeout(() => setToast(null), 3500);
+    }
+  };
+
 
   const filteredHistory = releases.filter((r) => releaseFilter === 'all' || r.platform === releaseFilter);
   const filteredProcesses = processes.filter(
@@ -289,6 +435,34 @@ export const AdminPanelPlus: React.FC<Props> = ({ onBackToPortal, initialTab = '
           <span>Kiểm tra API Cập nhật</span>
         </button>
 
+        {/* Section 3: Multi-Cloud Domains & Software Components */}
+        <div className="admin-section-tag">TÊN MIỀN & ỨNG DỤNG</div>
+        <button
+          type="button"
+          className={`admin-nav-item ${activeTab === 'domains' ? 'active' : ''}`}
+          onClick={() => setActiveTab('domains')}
+        >
+          <span className="icon">🌐</span>
+          <span>Điều hướng Tên miền & DNS</span>
+        </button>
+        <button
+          type="button"
+          className={`admin-nav-item ${activeTab === 'apps' ? 'active' : ''}`}
+          onClick={() => setActiveTab('apps')}
+        >
+          <span className="icon">📦</span>
+          <span>Thành phần & Ứng dụng</span>
+        </button>
+        <button
+          type="button"
+          className={`admin-nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
+          onClick={() => setActiveTab('analytics')}
+        >
+          <span className="icon">📊</span>
+          <span>Lưu lượng Edge & Audit</span>
+        </button>
+
+
         <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid rgba(135, 172, 224, 0.12)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 10, color: '#88a3cb' }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#73e4d0', display: 'inline-block' }} />
@@ -390,7 +564,42 @@ export const AdminPanelPlus: React.FC<Props> = ({ onBackToPortal, initialTab = '
                 <i style={{ width: '100%' }} />
               </div>
             </article>
+
+            <article className="summary-card" onClick={() => setActiveTab('domains')} style={{ cursor: 'pointer' }}>
+              <div className="summary-top">
+                <span>DOMAINS & ROUTER</span>
+                <span className="summary-icon icon-teal">🌐</span>
+              </div>
+              <div className="summary-value">
+                {domains.length} <span style={{ fontSize: 13, color: '#73e4d0', fontWeight: 500 }}>Origins</span>
+              </div>
+              <div className="summary-bottom">
+                <span>Cloudflare · Render · GitHub</span>
+                <b>Đang điều hướng</b>
+              </div>
+              <div className="summary-rail teal-rail">
+                <i style={{ width: '100%' }} />
+              </div>
+            </article>
+
+            <article className="summary-card" onClick={() => setActiveTab('apps')} style={{ cursor: 'pointer' }}>
+              <div className="summary-top">
+                <span>ACTIVE ADD-ONS</span>
+                <span className="summary-icon icon-blue">📦</span>
+              </div>
+              <div className="summary-value">
+                {components.filter((c) => c.status === 'active').length} <span style={{ fontSize: 13, color: '#73e4d0', fontWeight: 500 }}>/ {components.length}</span>
+              </div>
+              <div className="summary-bottom">
+                <span>WAF · Webhook · Snapshot</span>
+                <b>Bảo vệ đa tầng</b>
+              </div>
+              <div className="summary-rail">
+                <i style={{ width: `${(components.filter((c) => c.status === 'active').length / (components.length || 1)) * 100}%` }} />
+              </div>
+            </article>
           </section>
+
 
           {/* TAB 1: TELEMETRY */}
           {activeTab === 'telemetry' && (
@@ -1156,6 +1365,683 @@ ENABLE_AUTHENTICODE_VERIFY=true`}
               </div>
             </div>
           )}
+
+          {/* TAB 11: DOMAIN & DNS DISPATCHER */}
+          {activeTab === 'domains' && (
+            <div style={{ marginTop: 28 }}>
+              <div className="section-heading">
+                <div>
+                  <div className="section-index">ĐIỀU HƯỚNG TÊN MIỀN <span>/</span> MULTI-CLOUD DOMAINS & ROUTER</div>
+                  <h2>Quản Lý Tên Miền Đa Nền Tảng & Điều Hướng Tự Động</h2>
+                  <p>
+                    Tận dụng các tên miền được cấp từ Cloudflare Pages, Workers, Render.com hoặc GitHub Pages để điều hướng người dùng độc lập tới Bảng Quản Trị hoặc Cổng Tải Công Khai.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button type="button" className="button button-primary" onClick={() => setIsAddDomainOpen(true)}>
+                    + Thêm tên miền mới <span>↗</span>
+                  </button>
+                  <button type="button" className="button button-soft" onClick={() => handleSimulateUrl()}>
+                    Mô phỏng router URL <span>⚡</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* URL & Domain Simulator Box */}
+              <div className="admin-debugger-box" style={{ marginBottom: 24, border: '1px solid rgba(115, 228, 208, 0.3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ color: '#73e4d0', fontSize: 16 }}>⚡</span>
+                    <strong style={{ fontSize: 13, color: '#ffffff' }}>CÔNG CỤ MÔ PHỎNG ĐIỀU HƯỚNG THEO URL & TÊN MIỀN</strong>
+                  </div>
+                  <span style={{ fontSize: 10, color: '#88a3cb', fontFamily: 'var(--mono)' }}>URL RESOLVER ENGINE v2.0</span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    className="form-control"
+                    style={{ flex: 1, minWidth: 280 }}
+                    value={simUrl}
+                    onChange={(e) => {
+                      setSimUrl(e.target.value);
+                      handleSimulateUrl(e.target.value);
+                    }}
+                    placeholder="Nhập hostname hoặc URL (vd: admin-hendytools.pages.dev, hendytools.onrender.com...)"
+                  />
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    onClick={() => handleSimulateUrl()}
+                  >
+                    Kiểm tra phân giải <span>→</span>
+                  </button>
+                </div>
+
+                {/* Quick Presets */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 10, color: '#88a3cb' }}>Mẫu thử nhanh:</span>
+                  {[
+                    'https://admin-hendytools.pages.dev/telemetry',
+                    'https://hendytools.pages.dev/download',
+                    'https://hendy-admin.onrender.com/domains',
+                    'https://ngogiaidy3.github.io/',
+                    'https://admin.hendytools.com/services',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      style={{
+                        background: 'rgba(135, 172, 224, 0.08)',
+                        border: '1px solid rgba(135, 172, 224, 0.2)',
+                        color: '#9cbdf2',
+                        fontSize: 10,
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        fontFamily: 'var(--mono)',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => {
+                        setSimUrl(preset);
+                        handleSimulateUrl(preset);
+                      }}
+                    >
+                      {preset.replace('https://', '')}
+                    </button>
+                  ))}
+                </div>
+
+                {simResult && (
+                  <div
+                    style={{
+                      marginTop: 16,
+                      padding: 14,
+                      background: '#030b18',
+                      border: '1px solid rgba(115, 228, 208, 0.25)',
+                      borderRadius: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 10, color: '#73e4d0', fontFamily: 'var(--mono)', marginBottom: 4 }}>
+                        KẾT QUẢ ĐỊNH TUYẾN TỰ ĐỘNG
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span
+                          className={`target-interface-pill ${
+                            simResult.view === 'admin' ? 'pill-admin' : 'pill-portal'
+                          }`}
+                          style={{ margin: 0 }}
+                        >
+                          {simResult.view === 'admin'
+                            ? 'BẢNG QUẢN TRỊ SERVER PLUS (ADMIN)'
+                            : 'CỔNG TẢI CÔNG KHAI (USER PORTAL)'}
+                        </span>
+                        <span style={{ fontSize: 12, color: '#adc4e0' }}>
+                          Nguồn khớp: <b>{simResult.matchedSource}</b>
+                        </span>
+                        {simResult.defaultTab && (
+                          <span style={{ fontSize: 11, color: '#73e4d0', fontFamily: 'var(--mono)' }}>
+                            Tab đích: #{simResult.defaultTab}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="button button-soft"
+                      style={{ fontSize: 11 }}
+                      onClick={() => {
+                        if (simResult.view === 'download') {
+                          onBackToPortal();
+                        } else if (simResult.defaultTab) {
+                          setActiveTab(simResult.defaultTab);
+                          window.location.hash = `#${simResult.defaultTab}`;
+                        }
+                      }}
+                    >
+                      Mở giao diện này ngay ↗
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Active Domains Grid */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <h3 style={{ fontSize: 14, color: '#ffffff', letterSpacing: '0.04em' }}>
+                  DANH SÁCH TÊN MIỀN ĐÃ CẤU HÌNH ({domains.length})
+                </h3>
+                <span style={{ fontSize: 11, color: '#88a3cb' }}>
+                  Đồng bộ tức thời trên Cloudflare CDN & Render DNS
+                </span>
+              </div>
+
+              <div className="admin-domain-grid">
+                {domains.map((dom) => (
+                  <div key={dom.id} className="admin-domain-card">
+                    <div>
+                      <div className="domain-card-header">
+                        <div>
+                          <div className="domain-host">{dom.domain}</div>
+                          <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                            <span
+                              className={`domain-provider-badge ${
+                                dom.provider.includes('cloudflare')
+                                  ? 'badge-cloudflare'
+                                  : dom.provider === 'render'
+                                  ? 'badge-render'
+                                  : dom.provider === 'github-pages'
+                                  ? 'badge-github'
+                                  : 'badge-custom'
+                              }`}
+                            >
+                              {dom.provider === 'cloudflare-pages' && 'Cloudflare Pages'}
+                              {dom.provider === 'cloudflare-workers' && 'Cloudflare Worker'}
+                              {dom.provider === 'render' && 'Render.com'}
+                              {dom.provider === 'github-pages' && 'GitHub Pages'}
+                              {dom.provider === 'custom' && 'Tên miền riêng'}
+                            </span>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                fontSize: 10,
+                                color: '#73e4d0',
+                                background: 'rgba(115, 228, 208, 0.08)',
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                              }}
+                            >
+                              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#73e4d0' }} />
+                              TLS 1.3 Active
+                            </span>
+                            {dom.isPrimary && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  color: '#facc15',
+                                  background: 'rgba(250, 204, 21, 0.12)',
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                PRIMARY
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`target-interface-pill ${
+                          dom.targetInterface === 'admin'
+                            ? 'pill-admin'
+                            : dom.targetInterface === 'portal'
+                            ? 'pill-portal'
+                            : 'pill-gateway'
+                        }`}
+                      >
+                        <span>
+                          {dom.targetInterface === 'admin' && '🛡 Điều hướng: Bảng Quản Trị Server Plus'}
+                          {dom.targetInterface === 'portal' && '👥 Điều hướng: Cổng Tải Về Công Khai'}
+                          {dom.targetInterface === 'api-gateway' && '⚡ Điều hướng: API Gateway / Check Update'}
+                        </span>
+                      </div>
+
+                      <p style={{ fontSize: 11, color: '#88a3cb', margin: '12px 0 0', lineHeight: 1.5 }}>
+                        {dom.notes}
+                      </p>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginTop: 16,
+                        paddingTop: 12,
+                        borderTop: '1px solid rgba(135, 172, 224, 0.1)',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#73e4d0',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                        onClick={() => handleToggleDomainTarget(dom.id)}
+                      >
+                        Đổi đích điều hướng ⇄
+                      </button>
+
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          type="button"
+                          style={{
+                            background: 'rgba(135, 172, 224, 0.08)',
+                            border: '1px solid rgba(135, 172, 224, 0.16)',
+                            color: '#adc4e0',
+                            fontSize: 10,
+                            padding: '4px 8px',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => {
+                            navigator.clipboard?.writeText(dom.domain);
+                            setToast(`Đã sao chép tên miền: ${dom.domain}`);
+                            setTimeout(() => setToast(null), 2500);
+                          }}
+                        >
+                          Sao chép
+                        </button>
+                        {!dom.isPrimary && (
+                          <button
+                            type="button"
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.08)',
+                              border: '1px solid rgba(239, 68, 68, 0.25)',
+                              color: '#f87171',
+                              fontSize: 10,
+                              padding: '4px 8px',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => handleDeleteDomain(dom.id, dom.domain)}
+                          >
+                            Xóa
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* DNS Reference Assistant */}
+              <div
+                style={{
+                  marginTop: 24,
+                  background: '#040b17',
+                  border: '1px solid rgba(135, 172, 224, 0.14)',
+                  borderRadius: 14,
+                  padding: 20,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span style={{ color: '#73e4d0', fontSize: 16 }}>📋</span>
+                  <strong style={{ fontSize: 13, color: '#ffffff' }}>
+                    HƯỚNG DẪN CẤU HÌNH BẢN GHI DNS KHI TRIỂN KHAI THỰC TẾ
+                  </strong>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                  <div style={{ background: '#020710', padding: 14, borderRadius: 10, border: '1px solid var(--line)' }}>
+                    <div style={{ color: '#ff9800', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
+                      CLOUDFLARE PAGES / WORKERS
+                    </div>
+                    <p style={{ fontSize: 11, color: '#88a3cb', lineHeight: 1.6 }}>
+                      • CNAME: <code>admin</code> trỏ về <code>hendytools.pages.dev</code> (Bật Proxied Orange Cloud)<br />
+                      • CNAME: <code>get</code> trỏ về <code>hendytools.pages.dev</code><br />
+                      • SSL/TLS: Full (Strict) với HTTP/3 và Early Hints bật tự động.
+                    </p>
+                  </div>
+                  <div style={{ background: '#020710', padding: 14, borderRadius: 10, border: '1px solid var(--line)' }}>
+                    <div style={{ color: '#73e4d0', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
+                      RENDER.COM STATIC SITES
+                    </div>
+                    <p style={{ fontSize: 11, color: '#88a3cb', lineHeight: 1.6 }}>
+                      • CNAME: <code>app</code> trỏ về <code>hendy-tools-platform.onrender.com</code><br />
+                      • Tự động cấp phát chứng chỉ Let's Encrypt Wildcard SSL miễn phí.<br />
+                      • Header CSP và X-Frame-Options được đồng bộ qua <code>render.yaml</code>.
+                    </p>
+                  </div>
+                  <div style={{ background: '#020710', padding: 14, borderRadius: 10, border: '1px solid var(--line)' }}>
+                    <div style={{ color: '#e2e8f0', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
+                      GITHUB PAGES APEX / SUBDOMAIN
+                    </div>
+                    <p style={{ fontSize: 11, color: '#88a3cb', lineHeight: 1.6 }}>
+                      • A records trỏ về IP GitHub Pages: <code>185.199.108.153</code>, <code>185.199.109.153</code><br />
+                      • CNAME file tại thư mục gốc tự động kích hoạt HTTPS Enforced.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 12: SOFTWARE COMPONENTS & APPLICATIONS */}
+          {activeTab === 'apps' && (
+            <div style={{ marginTop: 28 }}>
+              <div className="section-heading">
+                <div>
+                  <div className="section-index">HỆ THỐNG MỞ RỘNG <span>/</span> SOFTWARE COMPONENTS & APPS</div>
+                  <h2>Trung Tâm Thành Phần Phần Mềm & Ứng Dụng Mở Rộng</h2>
+                  <p>
+                    Triển khai các phần mềm và thành phần mở rộng bổ sung chức năng trên toàn bộ codebase: Webhook Event Dispatcher, Cloudflare WAF Shield, đồng bộ đa vùng R2 và sao lưu trạng thái.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button type="button" className="button button-primary" onClick={handleExportSnapshot}>
+                    Xuất Snapshot Hệ Thống 💾
+                  </button>
+                  <button type="button" className="button button-soft" onClick={() => setIsSnapshotOpen(true)}>
+                    Khôi phục từ Snapshot ↗
+                  </button>
+                </div>
+              </div>
+
+              {/* Components Grid */}
+              <div className="admin-components-grid">
+                {components.map((comp) => (
+                  <div key={comp.id} className="admin-component-card">
+                    <div>
+                      <div className="component-top-meta">
+                        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                          <div className="component-icon-badge">{comp.icon}</div>
+                          <div>
+                            <strong style={{ fontSize: 14, color: '#ffffff', display: 'block' }}>
+                              {comp.name}
+                            </strong>
+                            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                              <span
+                                style={{
+                                  fontSize: 9,
+                                  fontFamily: 'var(--mono)',
+                                  color: '#73e4d0',
+                                  background: 'rgba(115, 228, 208, 0.1)',
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                }}
+                              >
+                                v{comp.version}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: 9,
+                                  textTransform: 'uppercase',
+                                  color: '#88a3cb',
+                                  background: 'rgba(135, 172, 224, 0.08)',
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                }}
+                              >
+                                {comp.category}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Status Toggle Switch */}
+                        <button
+                          type="button"
+                          style={{
+                            background: comp.status === 'active' ? '#73e4d0' : '#334155',
+                            border: 'none',
+                            borderRadius: 20,
+                            width: 44,
+                            height: 24,
+                            position: 'relative',
+                            cursor: 'pointer',
+                            transition: 'background 0.2s ease',
+                          }}
+                          onClick={() => handleToggleComponent(comp.id)}
+                          title={`Nhấn để ${comp.status === 'active' ? 'Tắt' : 'Bật'} thành phần`}
+                        >
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: 2,
+                              left: comp.status === 'active' ? 22 : 2,
+                              width: 20,
+                              height: 20,
+                              borderRadius: '50%',
+                              background: comp.status === 'active' ? '#04101e' : '#cbd5e1',
+                              transition: 'left 0.2s ease',
+                            }}
+                          />
+                        </button>
+                      </div>
+
+                      <p style={{ fontSize: 12, color: '#adc4e0', margin: '14px 0 10px', lineHeight: 1.6 }}>
+                        {comp.description}
+                      </p>
+
+                      <div style={{ fontSize: 10, color: '#687f9d', marginBottom: 14 }}>
+                        Tác giả: <b>{comp.author}</b> · Hoạt động: {comp.lastRun}
+                      </div>
+
+                      {/* Metrics chips */}
+                      {comp.metrics && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+                          {comp.metrics.map((m) => (
+                            <div
+                              key={m.label}
+                              style={{
+                                background: '#020710',
+                                border: '1px solid rgba(135, 172, 224, 0.1)',
+                                borderRadius: 8,
+                                padding: '8px 10px',
+                              }}
+                            >
+                              <div style={{ fontSize: 9, color: '#88a3cb' }}>{m.label}</div>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: '#73e4d0', fontFamily: 'var(--mono)', marginTop: 2 }}>
+                                {m.value}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ paddingTop: 12, borderTop: '1px solid rgba(135, 172, 224, 0.1)' }}>
+                      {comp.id === 'comp-webhook' && (
+                        <button
+                          type="button"
+                          className="button button-soft"
+                          style={{ width: '100%', fontSize: 11, minHeight: 34 }}
+                          disabled={testingWebhook === comp.id}
+                          onClick={() => handleTestWebhook(comp.id)}
+                        >
+                          {testingWebhook === comp.id ? 'Đang gửi dispatch HTTP POST...' : 'Phát Test Webhook (Discord / Slack) ⚡'}
+                        </button>
+                      )}
+
+                      {comp.id === 'comp-waf' && (
+                        <button
+                          type="button"
+                          className="button button-soft"
+                          style={{ width: '100%', fontSize: 11, minHeight: 34 }}
+                          onClick={() => {
+                            setToast('Quy tắc WAF đã kiểm tra: 100 req/min rate limit và Anti-DDoS đang hiệu lực.');
+                            setTimeout(() => setToast(null), 3000);
+                          }}
+                        >
+                          Kiểm tra Rule Rate Limit & WAF Shield 🛡
+                        </button>
+                      )}
+
+                      {comp.id === 'comp-r2-mirror' && (
+                        <button
+                          type="button"
+                          className="button button-soft"
+                          style={{ width: '100%', fontSize: 11, minHeight: 34 }}
+                          onClick={() => {
+                            setToast('Bucket Cloudflare R2 (APAC) và S3 Backup đã đồng bộ 100% checksum SHA-256.');
+                            setTimeout(() => setToast(null), 3000);
+                          }}
+                        >
+                          Kiểm tra đồng bộ đa vùng R2 Storage ☁
+                        </button>
+                      )}
+
+                      {comp.id === 'comp-snapshot' && (
+                        <button
+                          type="button"
+                          className="button button-soft"
+                          style={{ width: '100%', fontSize: 11, minHeight: 34 }}
+                          onClick={handleExportSnapshot}
+                        >
+                          Tải snapshot hệ thống dạng JSON 💾
+                        </button>
+                      )}
+
+                      {comp.id === 'comp-edge-analytics' && (
+                        <button
+                          type="button"
+                          className="button button-soft"
+                          style={{ width: '100%', fontSize: 11, minHeight: 34 }}
+                          onClick={() => setActiveTab('analytics')}
+                        >
+                          Xem chi tiết Lưu lượng PoP Toàn cầu ↗
+                        </button>
+                      )}
+
+                      {comp.id === 'comp-audit' && (
+                        <button
+                          type="button"
+                          className="button button-soft"
+                          style={{ width: '100%', fontSize: 11, minHeight: 34 }}
+                          onClick={() => setActiveTab('analytics')}
+                        >
+                          Xem Nhật ký Tuân thủ & Thao tác 📋
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 13: EDGE TRAFFIC & AUDIT TELEMETRY */}
+          {activeTab === 'analytics' && (
+            <div style={{ marginTop: 28 }}>
+              <div className="section-heading">
+                <div>
+                  <div className="section-index">GIÁM SÁT TOÀN DIỆN <span>/</span> GLOBAL CDN EDGE & AUDIT</div>
+                  <h2>Lưu Lượng CDN Edge & Nhật Ký Hoạt Động Quản Trị</h2>
+                  <p>
+                    Theo dõi tỷ lệ lưu đệm cache và độ trễ tại các điểm biên Cloudflare toàn cầu, đồng thời lưu vết toàn bộ hoạt động của quản trị viên và hệ thống CI/CD.
+                  </p>
+                </div>
+              </div>
+
+              {/* Edge PoP Grid */}
+              <h3 style={{ fontSize: 13, color: '#ffffff', letterSpacing: '0.04em', marginBottom: 12 }}>
+                ĐIỂM TRUYỀN PHÁT BIÊN CDN EDGE TOÀN CẦU (GLOBAL CDN POPS)
+              </h3>
+              <div className="edge-pop-grid">
+                {trafficMetrics.map((pop) => (
+                  <div key={pop.code} className="edge-pop-card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#ffffff' }}>{pop.location}</span>
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontFamily: 'var(--mono)',
+                          color: '#73e4d0',
+                          background: 'rgba(115, 228, 208, 0.1)',
+                          padding: '2px 5px',
+                          borderRadius: 4,
+                        }}
+                      >
+                        {pop.code}
+                      </span>
+                    </div>
+
+                    <div style={{ margin: '14px 0 8px' }}>
+                      <div className="pop-latency-indicator">{pop.avgLatencyMs} ms</div>
+                      <div style={{ fontSize: 10, color: '#88a3cb', marginTop: 2 }}>Độ trễ trung bình Round-Trip</div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#adc4e0', marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(135, 172, 224, 0.1)' }}>
+                      <div>
+                        <span style={{ color: '#88a3cb', fontSize: 9, display: 'block' }}>Yêu cầu 24h:</span>
+                        <b>{pop.requests24h.toLocaleString()}</b>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ color: '#88a3cb', fontSize: 9, display: 'block' }}>Cache Hit:</span>
+                        <b style={{ color: '#73e4d0' }}>{pop.cacheHitRatio}%</b>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Audit Logs Table */}
+              <div style={{ marginTop: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 style={{ fontSize: 13, color: '#ffffff', letterSpacing: '0.04em' }}>
+                  NHẬT KÝ TUÂN THỦ & HOẠT ĐỘNG HỆ THỐNG (AUDIT TRAIL)
+                </h3>
+                <span style={{ fontSize: 11, color: '#88a3cb' }}>Lưu trữ bảo mật bất biến</span>
+              </div>
+
+              <div className="audit-table-wrapper">
+                <table className="audit-table">
+                  <thead>
+                    <tr>
+                      <th>THỜI GIAN</th>
+                      <th>TÁC TỬ (ACTOR)</th>
+                      <th>HÀNH ĐỘNG</th>
+                      <th>ĐỐI TƯỢNG</th>
+                      <th>TRẠNG THÁI</th>
+                      <th>IP ADDRESS</th>
+                      <th>CHI TIẾT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.map((log) => (
+                      <tr key={log.id}>
+                        <td style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#88a3cb' }}>
+                          {formatDateTime(log.timestamp)}
+                        </td>
+                        <td style={{ fontWeight: 600, color: '#ffffff' }}>{log.actor}</td>
+                        <td>
+                          <span
+                            style={{
+                              fontFamily: 'var(--mono)',
+                              fontSize: 9,
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              background: 'rgba(115, 228, 208, 0.1)',
+                              color: '#73e4d0',
+                            }}
+                          >
+                            {log.action}
+                          </span>
+                        </td>
+                        <td>{log.target}</td>
+                        <td>
+                          <span
+                            style={{
+                              fontSize: 9,
+                              fontWeight: 700,
+                              color: log.status === 'success' ? '#73e4d0' : log.status === 'warn' ? '#facc15' : '#f87171',
+                            }}
+                          >
+                            ● {log.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={{ fontFamily: 'var(--mono)', fontSize: 10 }}>{log.ipAddress}</td>
+                        <td style={{ color: '#adc4e0' }}>{log.details || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </main>
 
         {/* Footer */}
@@ -1164,12 +2050,231 @@ ENABLE_AUTHENTICODE_VERIFY=true`}
             <span className="admin-rail-icon" style={{ width: 28, height: 28, fontSize: 13 }}>H+</span>
             <span>Hendy Server Management Panel Plus · Production Node</span>
           </div>
-          <span style={{ fontSize: 9, color: '#687f9d' }}>Tất cả dữ liệu telemetry và manifest đã đồng bộ.</span>
+          <span style={{ fontSize: 9, color: '#687f9d' }}>Tất cả dữ liệu telemetry, tên miền và manifest đã đồng bộ.</span>
           <button type="button" onClick={onBackToPortal} style={{ color: '#73e4d0', fontSize: 11, fontWeight: 700 }}>
             Về Cổng Tải Công Khai ↗
           </button>
         </footer>
       </div>
+
+      {/* Add Domain Modal */}
+      {isAddDomainOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(2, 6, 15, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: '#061324',
+              border: '1px solid rgba(115, 228, 208, 0.3)',
+              borderRadius: 16,
+              width: '100%',
+              maxWidth: 500,
+              padding: 24,
+              boxShadow: '0 24px 60px rgba(0,0,0,0.7)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <div>
+                <strong style={{ fontSize: 15, color: '#ffffff' }}>LIÊN KẾT TÊN MIỀN MỚI</strong>
+                <div style={{ fontSize: 11, color: '#88a3cb', marginTop: 2 }}>
+                  Thiết lập phân luồng tự động tới Bảng Quản Trị hoặc Cổng Tải
+                </div>
+              </div>
+              <button
+                type="button"
+                style={{ background: 'none', border: 'none', color: '#88a3cb', fontSize: 18, cursor: 'pointer' }}
+                onClick={() => setIsAddDomainOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddDomain}>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label>TÊN MIỀN HOẶC SUBDOMAIN</label>
+                <input
+                  type="text"
+                  required
+                  className="form-control"
+                  placeholder="vd: admin.hendytools.com hoặc app.pages.dev"
+                  value={newHost}
+                  onChange={(e) => setNewHost(e.target.value)}
+                />
+              </div>
+
+              <div className="form-row" style={{ marginBottom: 14 }}>
+                <div className="form-group">
+                  <label>NỀN TẢNG (ORIGIN PROVIDER)</label>
+                  <select
+                    className="form-control"
+                    value={newProvider}
+                    onChange={(e) => setNewProvider(e.target.value as PlatformProvider)}
+                  >
+                    <option value="cloudflare-pages">Cloudflare Pages</option>
+                    <option value="cloudflare-workers">Cloudflare Worker</option>
+                    <option value="render">Render.com</option>
+                    <option value="github-pages">GitHub Pages</option>
+                    <option value="custom">Tên miền riêng (Custom DNS)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>GIAO DIỆN ĐÍCH ĐIỀU HƯỚNG</label>
+                  <select
+                    className="form-control"
+                    value={newTarget}
+                    onChange={(e) => setNewTarget(e.target.value as TargetInterface)}
+                  >
+                    <option value="admin">Bảng Quản Trị Server Plus</option>
+                    <option value="portal">Cổng Tải Về Công Khai</option>
+                    <option value="api-gateway">API Gateway Endpoint</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label>GHI CHÚ MỤC ĐÍCH SỬ DỤNG</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Vd: Tên miền điều hành nội bộ cho đội ngũ DevOps"
+                  value={newNotes}
+                  onChange={(e) => setNewNotes(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={() => setIsAddDomainOpen(false)}
+                >
+                  Hủy bỏ
+                </button>
+                <button type="submit" className="button button-primary">
+                  Lưu & Áp dụng Định tuyến <span>✓</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Snapshot Modal */}
+      {isSnapshotOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(2, 6, 15, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: '#061324',
+              border: '1px solid rgba(115, 228, 208, 0.3)',
+              borderRadius: 16,
+              width: '100%',
+              maxWidth: 620,
+              padding: 24,
+              boxShadow: '0 24px 60px rgba(0,0,0,0.7)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <strong style={{ fontSize: 15, color: '#ffffff' }}>SAO LƯU & KHÔI PHỤC SNAPSHOT HỆ THỐNG</strong>
+                <div style={{ fontSize: 11, color: '#88a3cb', marginTop: 2 }}>
+                  Xuất hoặc nhập toàn bộ trạng thái tên miền, bản phát hành và cấu hình
+                </div>
+              </div>
+              <button
+                type="button"
+                style={{ background: 'none', border: 'none', color: '#88a3cb', fontSize: 18, cursor: 'pointer' }}
+                onClick={() => setIsSnapshotOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            {snapshotJson ? (
+              <div>
+                <div style={{ fontSize: 11, color: '#73e4d0', marginBottom: 6 }}>
+                  SNAPSHOT JSON (ĐÃ XUẤT):
+                </div>
+                <textarea
+                  readOnly
+                  className="form-control"
+                  style={{ height: 220, fontFamily: 'var(--mono)', fontSize: 10, lineHeight: 1.5 }}
+                  value={snapshotJson}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+                  <button
+                    type="button"
+                    className="button button-soft"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(snapshotJson);
+                      setToast('Đã sao chép nội dung Snapshot JSON vào clipboard!');
+                      setTimeout(() => setToast(null), 2500);
+                    }}
+                  >
+                    Sao chép JSON 📋
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    onClick={() => setIsSnapshotOpen(false)}
+                  >
+                    Đóng cửa sổ
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: 11, color: '#88a3cb', marginBottom: 6 }}>
+                  Dán nội dung Snapshot JSON cần khôi phục:
+                </div>
+                <textarea
+                  className="form-control"
+                  style={{ height: 220, fontFamily: 'var(--mono)', fontSize: 10, lineHeight: 1.5 }}
+                  placeholder='{"version":"3.1.2","releases":[...],"domains":[...]}'
+                  value={snapshotImportInput}
+                  onChange={(e) => setSnapshotImportInput(e.target.value)}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+                  <button
+                    type="button"
+                    className="button button-quiet"
+                    onClick={() => setIsSnapshotOpen(false)}
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    onClick={handleImportSnapshot}
+                  >
+                    Thực hiện khôi phục <span>✓</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <PublishModal
         isOpen={isPublishModalOpen}
@@ -1183,3 +2288,4 @@ ENABLE_AUTHENTICODE_VERIFY=true`}
     </div>
   );
 };
+

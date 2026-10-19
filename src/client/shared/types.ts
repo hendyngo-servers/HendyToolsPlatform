@@ -88,3 +88,52 @@ export interface TerminalEntry {
   timestamp: string;
   status: 'success' | 'error' | 'running';
 }
+
+export type PlatformProvider = 'cloudflare-pages' | 'cloudflare-workers' | 'render' | 'github-pages' | 'custom';
+export type TargetInterface = 'admin' | 'portal' | 'api-gateway';
+
+export interface DomainMapping {
+  id: string;
+  domain: string;
+  provider: PlatformProvider;
+  targetInterface: TargetInterface;
+  isPrimary: boolean;
+  sslStatus: 'active' | 'provisioning' | 'pending-dns';
+  defaultTab?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface SoftwareComponent {
+  id: string;
+  name: string;
+  category: 'networking' | 'security' | 'automation' | 'analytics' | 'storage';
+  version: string;
+  status: 'active' | 'disabled';
+  description: string;
+  author: string;
+  icon: string;
+  lastRun?: string;
+  metrics?: { label: string; value: string }[];
+}
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  target: string;
+  status: 'success' | 'warn' | 'error';
+  ipAddress: string;
+  details?: string;
+}
+
+export interface EdgeTrafficMetric {
+  location: string;
+  code: string;
+  requests24h: number;
+  bandwidthMb: number;
+  cacheHitRatio: number;
+  avgLatencyMs: number;
+}
+

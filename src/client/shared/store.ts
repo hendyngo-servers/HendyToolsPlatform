@@ -1,4 +1,17 @@
-import { Platform, Channel, ReleaseManifest, UpdateCheckResult, SystemService, ProcessMetric, NetworkPort } from './types';
+import {
+  Platform,
+  Channel,
+  ReleaseManifest,
+  UpdateCheckResult,
+  SystemService,
+  ProcessMetric,
+  NetworkPort,
+  DomainMapping,
+  SoftwareComponent,
+  AuditLog,
+  EdgeTrafficMetric,
+  TargetInterface,
+} from './types';
 
 export const VERSION_REGEX = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 export const SHA256_REGEX = /^[a-f0-9]{64}$/i;
@@ -305,11 +318,247 @@ const INITIAL_PORTS: NetworkPort[] = [
 
 const RELEASES_KEY = 'hendy_prod_releases_v2';
 const SERVICES_KEY = 'hendy_prod_services_v2';
+const DOMAINS_KEY = 'hendy_prod_domains_v2';
+const COMPONENTS_KEY = 'hendy_prod_components_v2';
+const AUDIT_KEY = 'hendy_prod_audit_v2';
+
+const INITIAL_DOMAINS: DomainMapping[] = [
+  {
+    id: 'dom-1',
+    domain: 'hendytools.pages.dev',
+    provider: 'cloudflare-pages',
+    targetInterface: 'portal',
+    isPrimary: true,
+    sslStatus: 'active',
+    notes: 'Miền mặc định Cloudflare Pages dành cho người dùng công khai',
+    createdAt: '2026-10-15T08:00:00Z',
+  },
+  {
+    id: 'dom-2',
+    domain: 'admin-hendytools.pages.dev',
+    provider: 'cloudflare-pages',
+    targetInterface: 'admin',
+    isPrimary: false,
+    sslStatus: 'active',
+    defaultTab: 'domains',
+    notes: 'Subdomain quản trị độc lập trên Cloudflare Pages',
+    createdAt: '2026-10-15T08:30:00Z',
+  },
+  {
+    id: 'dom-3',
+    domain: 'hendy-tools-platform.onrender.com',
+    provider: 'render',
+    targetInterface: 'portal',
+    isPrimary: false,
+    sslStatus: 'active',
+    notes: 'Render.com Static Web Service Production Endpoint',
+    createdAt: '2026-10-16T09:00:00Z',
+  },
+  {
+    id: 'dom-4',
+    domain: 'hendy-admin.onrender.com',
+    provider: 'render',
+    targetInterface: 'admin',
+    isPrimary: false,
+    sslStatus: 'active',
+    defaultTab: 'telemetry',
+    notes: 'Render.com Dedicated Admin Workstation',
+    createdAt: '2026-10-16T09:15:00Z',
+  },
+  {
+    id: 'dom-5',
+    domain: 'hendy-api.workers.dev',
+    provider: 'cloudflare-workers',
+    targetInterface: 'api-gateway',
+    isPrimary: false,
+    sslStatus: 'active',
+    notes: 'Cloudflare Worker Serverless Release API Gateway',
+    createdAt: '2026-10-17T11:00:00Z',
+  },
+  {
+    id: 'dom-6',
+    domain: 'ngogiaidy3.github.io',
+    provider: 'github-pages',
+    targetInterface: 'portal',
+    isPrimary: false,
+    sslStatus: 'active',
+    notes: 'GitHub Pages Static Mirror Repository',
+    createdAt: '2026-10-18T04:00:00Z',
+  },
+  {
+    id: 'dom-7',
+    domain: 'admin.hendytools.com',
+    provider: 'custom',
+    targetInterface: 'admin',
+    isPrimary: false,
+    sslStatus: 'active',
+    defaultTab: 'telemetry',
+    notes: 'Tên miền Apex Admin Enterprise (Proxy Cloudflare)',
+    createdAt: '2026-10-18T14:00:00Z',
+  },
+  {
+    id: 'dom-8',
+    domain: 'get.hendytools.com',
+    provider: 'custom',
+    targetInterface: 'portal',
+    isPrimary: false,
+    sslStatus: 'active',
+    notes: 'Tên miền người dùng tải phần mềm (CNAME CDN)',
+    createdAt: '2026-10-18T14:05:00Z',
+  },
+];
+
+const INITIAL_COMPONENTS: SoftwareComponent[] = [
+  {
+    id: 'comp-webhook',
+    name: 'Webhook Event Dispatcher',
+    category: 'automation',
+    version: '2.4.0',
+    status: 'active',
+    description: 'Tự động gửi thông báo phát hành phiên bản mới đến Discord, Slack, và Telegram qua Webhook HTTP POST.',
+    author: 'Hendy DevOps Team',
+    icon: '⚡',
+    lastRun: '10 phút trước',
+    metrics: [
+      { label: 'Events Dispatched', value: '142' },
+      { label: 'Success Rate', value: '100%' },
+    ],
+  },
+  {
+    id: 'comp-waf',
+    name: 'Cloudflare WAF & Edge Shield',
+    category: 'security',
+    version: '3.1.0',
+    status: 'active',
+    description: 'Lọc lưu lượng độc hại, ngăn chặn tấn công DDoS, giới hạn tần suất truy cập API (Rate Limiting 100 req/min).',
+    author: 'Cloudflare Security Integration',
+    icon: '🛡',
+    lastRun: 'Thời gian thực (Active)',
+    metrics: [
+      { label: 'Threats Blocked', value: '38' },
+      { label: 'Managed Challenge', value: '12' },
+    ],
+  },
+  {
+    id: 'comp-r2-mirror',
+    name: 'Cloudflare R2 Multi-Region Sync',
+    category: 'storage',
+    version: '1.8.2',
+    status: 'active',
+    description: 'Đồng bộ hóa các gói nhị phân (EXE, APK) giữa Cloudflare R2 bucket APAC và AWS S3 EU dự phòng.',
+    author: 'Hendy Storage Engine',
+    icon: '☁',
+    lastRun: '25 phút trước',
+    metrics: [
+      { label: 'Total Objects', value: '12 files' },
+      { label: 'Storage Size', value: '344 MB' },
+    ],
+  },
+  {
+    id: 'comp-snapshot',
+    name: 'System Snapshot & Config Vault',
+    category: 'automation',
+    version: '1.2.0',
+    status: 'active',
+    description: 'Xuất và nhập toàn bộ trạng thái phiên bản, cấu hình tên miền, firewall và danh mục dịch vụ dưới dạng JSON.',
+    author: 'System Operations',
+    icon: '💾',
+    lastRun: 'Hôm nay lúc 08:30',
+    metrics: [
+      { label: 'Snapshots', value: '4 versions' },
+      { label: 'Integrity Check', value: 'SHA256 OK' },
+    ],
+  },
+  {
+    id: 'comp-edge-analytics',
+    name: 'Edge PoP Latency & Traffic Telemetry',
+    category: 'analytics',
+    version: '2.0.1',
+    status: 'active',
+    description: 'Phân tích hiệu năng tải tệp trên các điểm CDN Edge quốc tế (Singapore, Tokyo, Frankfurt, San Francisco).',
+    author: 'CDN Performance Labs',
+    icon: '🌐',
+    lastRun: '1 phút trước',
+    metrics: [
+      { label: 'Global Cache Ratio', value: '98.4%' },
+      { label: 'Avg Edge Latency', value: '18ms' },
+    ],
+  },
+  {
+    id: 'comp-audit',
+    name: 'Compliance Audit & Change Log',
+    category: 'security',
+    version: '1.5.0',
+    status: 'active',
+    description: 'Ghi lại mọi hoạt động quản trị, cập nhật trạng thái port, khởi động lại dịch vụ và ban hành release.',
+    author: 'Security Auditing',
+    icon: '📋',
+    lastRun: 'Vừa xong',
+    metrics: [
+      { label: 'Audit Records', value: '64 events' },
+      { label: 'Tamper Evident', value: 'Enabled' },
+    ],
+  },
+];
+
+const INITIAL_TRAFFIC: EdgeTrafficMetric[] = [
+  { location: 'Singapore (SIN Edge)', code: 'SIN', requests24h: 18420, bandwidthMb: 14200, cacheHitRatio: 99.1, avgLatencyMs: 12 },
+  { location: 'Tokyo, Japan (NRT Edge)', code: 'NRT', requests24h: 12150, bandwidthMb: 9400, cacheHitRatio: 98.7, avgLatencyMs: 24 },
+  { location: 'Frankfurt, Germany (FRA Edge)', code: 'FRA', requests24h: 8900, bandwidthMb: 6100, cacheHitRatio: 97.4, avgLatencyMs: 38 },
+  { location: 'San Francisco, US (SFO Edge)', code: 'SFO', requests24h: 15300, bandwidthMb: 11200, cacheHitRatio: 98.5, avgLatencyMs: 32 },
+  { location: 'Sydney, Australia (SYD Edge)', code: 'SYD', requests24h: 4600, bandwidthMb: 3200, cacheHitRatio: 96.8, avgLatencyMs: 45 },
+];
+
+const INITIAL_AUDIT_LOGS: AuditLog[] = [
+  {
+    id: 'aud-1',
+    timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+    actor: 'admin@hendytools.com',
+    action: 'DOMAIN_MAPPING_UPDATED',
+    target: 'hendytools.pages.dev -> Public Portal',
+    status: 'success',
+    ipAddress: '103.149.28.4',
+    details: 'Định tuyến Cloudflare Pages thành công',
+  },
+  {
+    id: 'aud-2',
+    timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    actor: 'admin@hendytools.com',
+    action: 'SERVICE_RESTARTED',
+    target: 'hendy-api-gateway',
+    status: 'success',
+    ipAddress: '103.149.28.4',
+    details: 'Khởi động lại cổng API không làm gián đoạn người dùng',
+  },
+  {
+    id: 'aud-3',
+    timestamp: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
+    actor: 'ci-bot@github-actions',
+    action: 'RELEASE_PUBLISHED',
+    target: 'Hendy Tools Windows Pro v3.1.2 (Build 30102)',
+    status: 'success',
+    ipAddress: '140.82.112.21',
+    details: 'Đã triển khai gói nhị phân lên Cloudflare R2',
+  },
+  {
+    id: 'aud-4',
+    timestamp: new Date(Date.now() - 1000 * 60 * 360).toISOString(),
+    actor: 'admin@hendytools.com',
+    action: 'WAF_RULE_ENFORCED',
+    target: 'Rate Limit: /api/v1/releases/check',
+    status: 'success',
+    ipAddress: '103.149.28.4',
+    details: 'Chính sách phòng vệ DDoS đã kích hoạt trên Cloudflare',
+  },
+];
 
 export class ProductionStore {
   private static releases: ReleaseManifest[] = [];
   private static services: SystemService[] = [];
   private static processes: ProcessMetric[] = [];
+  private static domains: DomainMapping[] = [];
+  private static components: SoftwareComponent[] = [];
+  private static auditLogs: AuditLog[] = [];
 
   public static initialize(): void {
     try {
@@ -326,8 +575,30 @@ export class ProductionStore {
       this.services = [...INITIAL_SERVICES];
     }
 
+    try {
+      const storedD = localStorage.getItem(DOMAINS_KEY);
+      this.domains = storedD ? JSON.parse(storedD) : [...INITIAL_DOMAINS];
+    } catch {
+      this.domains = [...INITIAL_DOMAINS];
+    }
+
+    try {
+      const storedC = localStorage.getItem(COMPONENTS_KEY);
+      this.components = storedC ? JSON.parse(storedC) : [...INITIAL_COMPONENTS];
+    } catch {
+      this.components = [...INITIAL_COMPONENTS];
+    }
+
+    try {
+      const storedA = localStorage.getItem(AUDIT_KEY);
+      this.auditLogs = storedA ? JSON.parse(storedA) : [...INITIAL_AUDIT_LOGS];
+    } catch {
+      this.auditLogs = [...INITIAL_AUDIT_LOGS];
+    }
+
     this.processes = [...INITIAL_PROCESSES];
   }
+
 
   public static getReleases(): ReleaseManifest[] {
     if (this.releases.length === 0) this.initialize();
@@ -426,6 +697,298 @@ export class ProductionStore {
     return [...INITIAL_PORTS];
   }
 
+  // --- Domain Management & Routing Engine ---
+  public static getDomains(): DomainMapping[] {
+    if (this.domains.length === 0) this.initialize();
+    return [...this.domains];
+  }
+
+  public static addDomain(mapping: DomainMapping): void {
+    if (this.domains.length === 0) this.initialize();
+    this.domains = [mapping, ...this.domains.filter((d) => d.id !== mapping.id)];
+    try {
+      localStorage.setItem(DOMAINS_KEY, JSON.stringify(this.domains));
+    } catch {
+      // ignore
+    }
+    this.addAuditLog({
+      actor: 'admin@hendytools.com',
+      action: 'DOMAIN_ADDED',
+      target: `${mapping.domain} -> ${mapping.targetInterface}`,
+      status: 'success',
+      ipAddress: '103.149.28.4',
+      details: `Đã liên kết tên miền ${mapping.domain} (${mapping.provider}) vào hệ thống.`,
+    });
+  }
+
+  public static removeDomain(id: string): void {
+    const target = this.domains.find((d) => d.id === id);
+    this.domains = this.domains.filter((d) => d.id !== id);
+    try {
+      localStorage.setItem(DOMAINS_KEY, JSON.stringify(this.domains));
+    } catch {
+      // ignore
+    }
+    if (target) {
+      this.addAuditLog({
+        actor: 'admin@hendytools.com',
+        action: 'DOMAIN_REMOVED',
+        target: target.domain,
+        status: 'warn',
+        ipAddress: '103.149.28.4',
+        details: `Đã hủy liên kết tên miền ${target.domain}`,
+      });
+    }
+  }
+
+  public static updateDomain(id: string, updates: Partial<DomainMapping>): void {
+    this.domains = this.domains.map((d) => (d.id === id ? { ...d, ...updates } : d));
+    try {
+      localStorage.setItem(DOMAINS_KEY, JSON.stringify(this.domains));
+    } catch {
+      // ignore
+    }
+  }
+
+  public static resolveTargetInterface(
+    hostname: string,
+    pathname: string,
+    search: string,
+    hash: string
+  ): { view: 'download' | 'admin'; matchedSource: string; defaultTab?: string } {
+    if (this.domains.length === 0) this.initialize();
+
+    // 1. Explicit search parameters (?interface=admin / ?view=download)
+    const params = new URLSearchParams(search);
+    const ifaceParam = (params.get('interface') || params.get('view') || '').toLowerCase();
+    if (['admin', 'manage', 'server', 'console'].includes(ifaceParam)) {
+      return {
+        view: 'admin',
+        matchedSource: `Query param (?interface=${ifaceParam})`,
+        defaultTab: params.get('tab') || undefined,
+      };
+    }
+    if (['download', 'portal', 'user', 'public'].includes(ifaceParam)) {
+      return {
+        view: 'download',
+        matchedSource: `Query param (?interface=${ifaceParam})`,
+      };
+    }
+
+    // 2. Direct path routing (/admin, /admin/domains, /console vs /download, /portal, /)
+    const cleanPath = pathname.toLowerCase();
+    if (
+      cleanPath.startsWith('/admin') ||
+      cleanPath.startsWith('/console') ||
+      cleanPath.startsWith('/server') ||
+      cleanPath.startsWith('/manage')
+    ) {
+      const segments = cleanPath.split('/').filter(Boolean);
+      const subTab = segments[1]; // e.g., /admin/domains -> 'domains'
+      return {
+        view: 'admin',
+        matchedSource: `Path URL (${cleanPath})`,
+        defaultTab: subTab,
+      };
+    }
+    if (
+      cleanPath.startsWith('/download') ||
+      cleanPath.startsWith('/portal') ||
+      cleanPath.startsWith('/releases') ||
+      cleanPath.startsWith('/client')
+    ) {
+      return {
+        view: 'download',
+        matchedSource: `Path URL (${cleanPath})`,
+      };
+    }
+
+    // 3. Hash routing check (#admin, #domains, #apps, #telemetry vs #download)
+    const cleanHash = hash.toLowerCase();
+    const adminHashes = [
+      '#admin',
+      '#domains',
+      '#apps',
+      '#telemetry',
+      '#services',
+      '#processes',
+      '#ports',
+      '#cli',
+      '#env',
+      '#channels',
+      '#archive',
+      '#pipeline',
+      '#debugger',
+    ];
+    if (adminHashes.some((h) => cleanHash.startsWith(h))) {
+      const targetTab = cleanHash.replace('#', '') || 'telemetry';
+      return {
+        view: 'admin',
+        matchedSource: `Hash router (${cleanHash})`,
+        defaultTab: targetTab === 'admin' ? 'telemetry' : targetTab,
+      };
+    }
+    if (['#download', '#portal', '#downloads', '#top', '#updates', '#help'].includes(cleanHash)) {
+      return {
+        view: 'download',
+        matchedSource: `Hash router (${cleanHash})`,
+      };
+    }
+
+    // 4. Exact domain mapping match
+    const host = hostname.toLowerCase();
+    const matched = this.domains.find((d) => d.domain.toLowerCase() === host);
+    if (matched) {
+      if (matched.targetInterface === 'admin') {
+        return {
+          view: 'admin',
+          matchedSource: `Tên miền cấu hình: ${matched.domain} (${matched.provider})`,
+          defaultTab: matched.defaultTab || 'telemetry',
+        };
+      }
+      return {
+        view: 'download',
+        matchedSource: `Tên miền cấu hình: ${matched.domain} (${matched.provider})`,
+      };
+    }
+
+    // 5. Hostname keyword heuristic (admin.*, admin-*, server-*, get.*, download.*)
+    if (
+      host.startsWith('admin.') ||
+      host.includes('-admin.') ||
+      host.startsWith('console.') ||
+      host.startsWith('panel.') ||
+      host.startsWith('server.')
+    ) {
+      return {
+        view: 'admin',
+        matchedSource: `Tự động nhận diện Subdomain Admin (${host})`,
+        defaultTab: 'telemetry',
+      };
+    }
+
+    if (
+      host.startsWith('download.') ||
+      host.startsWith('portal.') ||
+      host.startsWith('get.') ||
+      host.startsWith('app.')
+    ) {
+      return {
+        view: 'download',
+        matchedSource: `Tự động nhận diện Subdomain Portal (${host})`,
+      };
+    }
+
+    // Fallback default is Public Portal
+    return {
+      view: 'download',
+      matchedSource: `Mặc định công khai (${host})`,
+    };
+  }
+
+  // --- Software Components & Applications ---
+  public static getComponents(): SoftwareComponent[] {
+    if (this.components.length === 0) this.initialize();
+    return [...this.components];
+  }
+
+  public static toggleComponent(id: string): void {
+    this.components = this.components.map((c) =>
+      c.id === id ? { ...c, status: c.status === 'active' ? 'disabled' : 'active' } : c
+    );
+    try {
+      localStorage.setItem(COMPONENTS_KEY, JSON.stringify(this.components));
+    } catch {
+      // ignore
+    }
+    const comp = this.components.find((c) => c.id === id);
+    if (comp) {
+      this.addAuditLog({
+        actor: 'admin@hendytools.com',
+        action: 'COMPONENT_TOGGLED',
+        target: comp.name,
+        status: 'success',
+        ipAddress: '103.149.28.4',
+        details: `Trạng thái thành phần chuyển sang: ${comp.status.toUpperCase()}`,
+      });
+    }
+  }
+
+  // --- Audit Logs & Edge Telemetry ---
+  public static getAuditLogs(): AuditLog[] {
+    if (this.auditLogs.length === 0) this.initialize();
+    return [...this.auditLogs];
+  }
+
+  public static addAuditLog(entry: Omit<AuditLog, 'id' | 'timestamp'>): void {
+    const newLog: AuditLog = {
+      id: `aud-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      timestamp: new Date().toISOString(),
+      ...entry,
+    };
+    this.auditLogs = [newLog, ...this.auditLogs.slice(0, 49)];
+    try {
+      localStorage.setItem(AUDIT_KEY, JSON.stringify(this.auditLogs));
+    } catch {
+      // ignore
+    }
+  }
+
+  public static getTrafficMetrics(): EdgeTrafficMetric[] {
+    return [...INITIAL_TRAFFIC];
+  }
+
+  // --- System Snapshots (State Export / Import) ---
+  public static exportSystemSnapshot(): string {
+    const snapshot = {
+      version: '3.1.2',
+      exportedAt: new Date().toISOString(),
+      schema: 'hendy-platform-v2',
+      releases: this.getReleases(),
+      domains: this.getDomains(),
+      services: this.getServices(),
+      components: this.getComponents(),
+      auditLogs: this.getAuditLogs(),
+    };
+    return JSON.stringify(snapshot, null, 2);
+  }
+
+  public static importSystemSnapshot(jsonString: string): boolean {
+    try {
+      const data = JSON.parse(jsonString);
+      if (!data.schema || !data.releases) {
+        return false;
+      }
+      if (Array.isArray(data.releases)) {
+        this.releases = data.releases;
+        localStorage.setItem(RELEASES_KEY, JSON.stringify(data.releases));
+      }
+      if (Array.isArray(data.domains)) {
+        this.domains = data.domains;
+        localStorage.setItem(DOMAINS_KEY, JSON.stringify(data.domains));
+      }
+      if (Array.isArray(data.services)) {
+        this.services = data.services;
+        localStorage.setItem(SERVICES_KEY, JSON.stringify(data.services));
+      }
+      if (Array.isArray(data.components)) {
+        this.components = data.components;
+        localStorage.setItem(COMPONENTS_KEY, JSON.stringify(data.components));
+      }
+      this.addAuditLog({
+        actor: 'admin@hendytools.com',
+        action: 'SNAPSHOT_RESTORED',
+        target: `Schema ${data.schema}`,
+        status: 'success',
+        ipAddress: '103.149.28.4',
+        details: 'Khôi phục cấu hình hệ thống từ tập tin Snapshot hoàn tất.',
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   public static triggerProductionDownload(platform: Platform, version: string, fileName: string): void {
     const packageHeader = `HENDY TOOLS PRODUCTION RELEASE DISTRIBUTION\nPackage: ${fileName}\nPlatform: ${platform}\nVersion: ${version}\nTimestamp: ${new Date().toISOString()}\nAuthenticode EV Signature: Verified\nCloudflare R2 Origin: https://hendy-tool-releases.r2.cloudflarestorage.com\nIntegrity: SHA-256 Passed\n`;
     const blob = new Blob([packageHeader], { type: 'application/octet-stream' });
@@ -439,3 +1002,4 @@ export class ProductionStore {
     URL.revokeObjectURL(url);
   }
 }
+
