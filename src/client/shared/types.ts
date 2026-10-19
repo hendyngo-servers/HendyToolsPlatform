@@ -6,8 +6,9 @@ export interface Artifact {
   fileName: string;
   sha256: string;
   size: number;
-  contentType?: string;
+  contentType: string;
   signerThumbprint?: string;
+  architecture?: 'x64' | 'arm64' | 'universal';
 }
 
 export interface ReleaseManifest {
@@ -46,4 +47,44 @@ export interface UpdateCheckResult {
     signerThumbprint: string | null;
   } | null;
   downloadUrl: string | null;
+}
+
+export interface SystemService {
+  id: string;
+  name: string;
+  displayName: string;
+  category: 'core' | 'web' | 'storage' | 'security';
+  port: number | null;
+  status: 'running' | 'stopped' | 'restarting';
+  uptime: string;
+  cpu: number;
+  memory: string;
+  description: string;
+}
+
+export interface ProcessMetric {
+  pid: number;
+  name: string;
+  user: string;
+  cpu: number;
+  memoryMb: number;
+  status: 'running' | 'sleeping' | 'idle';
+  command: string;
+}
+
+export interface NetworkPort {
+  port: number;
+  protocol: 'TCP' | 'UDP';
+  service: string;
+  binding: string;
+  state: 'LISTEN' | 'ESTABLISHED';
+  policy: 'ALLOWED' | 'PROTECTED' | 'INTERNAL';
+}
+
+export interface TerminalEntry {
+  id: string;
+  command: string;
+  output: string;
+  timestamp: string;
+  status: 'success' | 'error' | 'running';
 }

@@ -1,10 +1,14 @@
-name: Manual deploy Hendy Worker and website
+name: Deploy to Cloudflare
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
+  deployments: write
 
 concurrency:
   group: hendy-cloudflare-production
@@ -12,29 +16,32 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy Worker and direct-download website
+    name: Build & Deploy to Cloudflare Pages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
+
       - name: Install dependencies
-        run: npm install
-      - name: Type-check Worker
-        run: npm run typecheck
-      - name: Ensure R2 bucket exists
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          if ! npx wrangler r2 bucket list | grep -q 'hendy-tool-releases'; then
-            npx wrangler r2 bucket create hendy-tool-releases
-          fi
-      - name: Deploy website and API
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy
+        run: npm ci || npm install
+
+      - name: Lint and Type-check
+        run: npm run lint
+
+      - name: Build production package
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: hendytoolsplatform
+          directory: dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

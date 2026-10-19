@@ -1,0 +1,12 @@
+name = "hendy-tools-platform"
+compatibility_date = "2026-10-15"
+pages_build_output_dir = "./dist"
+
+[site]
+bucket = "./dist"
+
+# Production environment variables
+[vars]
+ENVIRONMENT = "production"
+APP_NAME = "Hendy Tools Platform"
+RELEASE_STORAGE_BUCKET = "hendy-tool-releases"

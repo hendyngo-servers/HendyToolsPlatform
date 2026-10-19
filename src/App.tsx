@@ -1,39 +1,51 @@
 import React, { useState, useEffect } from 'react';
-import { DownloadCenter } from './components/DownloadCenter';
-import { UnifiedServerPanelPlus } from './components/UnifiedServerPanelPlus';
-import { IntegrityCheckModal } from './components/IntegrityCheckModal';
-import { ReleaseStore } from './services/releaseStore';
+import { DownloadPortal } from './client/portal/DownloadPortal';
+import { AdminPanelPlus } from './client/admin/AdminPanelPlus';
+import { IntegrityModal } from './client/shared/IntegrityModal';
+import { ProductionStore } from './client/shared/store';
 
 export type AppView = 'download' | 'admin';
 
 export const App: React.FC = () => {
   const [view, setView] = useState<AppView>('download');
-  const [adminTab, setAdminTab] = useState<string>('server-overview');
+  const [adminTab, setAdminTab] = useState<string>('telemetry');
   const [isIntegrityOpen, setIsIntegrityOpen] = useState(false);
 
   useEffect(() => {
-    ReleaseStore.initialize();
+    ProductionStore.initialize();
 
     const handleHash = () => {
       const hash = window.location.hash.toLowerCase();
       if (['#admin', '#server', '#console', '#manage', '#panel'].includes(hash)) {
         setView('admin');
-        setAdminTab('server-overview');
-      } else if (hash === '#releases' || hash === '#release-channels') {
-        setView('admin');
-        setAdminTab('release-overview');
-      } else if (hash === '#history' || hash === '#changelog') {
-        setView('admin');
-        setAdminTab('history');
-      } else if (hash === '#publish' || hash === '#build') {
-        setView('admin');
-        setAdminTab('publish');
+        setAdminTab('telemetry');
       } else if (hash === '#services') {
         setView('admin');
         setAdminTab('services');
-      } else if (hash === '#terminal') {
+      } else if (hash === '#processes') {
         setView('admin');
-        setAdminTab('terminal');
+        setAdminTab('processes');
+      } else if (hash === '#ports' || hash === '#firewall') {
+        setView('admin');
+        setAdminTab('ports');
+      } else if (hash === '#cli' || hash === '#terminal') {
+        setView('admin');
+        setAdminTab('cli');
+      } else if (hash === '#env') {
+        setView('admin');
+        setAdminTab('env');
+      } else if (['#channels', '#releases', '#release-channels'].includes(hash)) {
+        setView('admin');
+        setAdminTab('channels');
+      } else if (['#archive', '#changelog', '#history'].includes(hash)) {
+        setView('admin');
+        setAdminTab('archive');
+      } else if (['#pipeline', '#cicd', '#build'].includes(hash)) {
+        setView('admin');
+        setAdminTab('pipeline');
+      } else if (['#debugger', '#api-test'].includes(hash)) {
+        setView('admin');
+        setAdminTab('debugger');
       } else if (['#downloads', '#updates', '#help', '#top'].includes(hash) || !hash) {
         setView('download');
       }
@@ -44,32 +56,32 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHash);
   }, []);
 
-  const handleOpenAdminPanel = (tab: string = 'server-overview') => {
+  const handleOpenAdmin = (tab: string = 'telemetry') => {
     setAdminTab(tab);
     setView('admin');
     window.location.hash = `#${tab}`;
   };
 
-  const handleBackToPublic = () => {
+  const handleBackToPortal = () => {
     setView('download');
     window.location.hash = '#top';
   };
 
   return (
-    <div className="app-container">
+    <div className="hendy-app-root">
       {view === 'download' ? (
-        <DownloadCenter
-          onOpenAdminPanel={handleOpenAdminPanel}
+        <DownloadPortal
+          onOpenAdmin={() => handleOpenAdmin('telemetry')}
           onOpenIntegrity={() => setIsIntegrityOpen(true)}
         />
       ) : (
-        <UnifiedServerPanelPlus
+        <AdminPanelPlus
           initialTab={adminTab}
-          onBackToPublic={handleBackToPublic}
+          onBackToPortal={handleBackToPortal}
         />
       )}
 
-      <IntegrityCheckModal
+      <IntegrityModal
         isOpen={isIntegrityOpen}
         onClose={() => setIsIntegrityOpen(false)}
       />

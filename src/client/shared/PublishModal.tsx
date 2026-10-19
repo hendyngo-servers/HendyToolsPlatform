@@ -1,49 +1,49 @@
 import React, { useState } from 'react';
-import { Platform, Channel, ReleaseManifest } from '../types';
-import { ReleaseStore, VERSION_RE, SHA256_RE } from '../services/releaseStore';
+import { Platform, Channel, ReleaseManifest } from './types';
+import { ProductionStore, VERSION_REGEX, SHA256_REGEX } from './store';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onPublished: () => void;
 }
 
-export const NewReleaseModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+export const PublishModal: React.FC<Props> = ({ isOpen, onClose, onPublished }) => {
   const [platform, setPlatform] = useState<Platform>('windows');
   const [channel, setChannel] = useState<Channel>('stable');
   const [version, setVersion] = useState('3.2.0');
   const [build, setBuild] = useState('30200');
-  const [minSupportedVersion, setMinSupportedVersion] = useState('2.5.0');
+  const [minSupportedVersion, setMinSupportedVersion] = useState('2.8.0');
   const [mandatory, setMandatory] = useState(false);
-  const [notes, setNotes] = useState('Nâng cấp hiệu năng xử lý tác vụ.\nCập nhật giao diện và cải thiện bảo mật.');
+  const [notes, setNotes] = useState('Tối ưu hóa hiệu năng vi xử lý và quản lý tài nguyên.\nCập nhật giao diện và tăng cường bảo mật hệ thống.');
   const [storeUrl, setStoreUrl] = useState('https://testflight.apple.com/join/hendytools');
-  const [sha256, setSha256] = useState('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
-  const [fileSizeMb, setFileSizeMb] = useState('48.5');
-  const [error, setError] = useState<string | null>(null);
+  const [sha256, setSha256] = useState('9f833a69a3b684cb3e0a2944b02927e163533446955a8f57297ff055f10667e8');
+  const [fileSizeMb, setFileSizeMb] = useState('49.5');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setErrorMessage(null);
 
-    if (!VERSION_RE.test(version)) {
-      setError('Phiên bản không đúng định dạng (ví dụ: 3.2.0 hoặc 3.2.0-beta.1)');
+    if (!VERSION_REGEX.test(version)) {
+      setErrorMessage('Phiên bản phải tuân thủ Semantic Versioning (ví dụ: 3.2.0 hoặc 3.2.0-beta.1)');
       return;
     }
     const buildNum = Number.parseInt(build, 10);
     if (!Number.isSafeInteger(buildNum) || buildNum <= 0) {
-      setError('Build number phải là số nguyên dương.');
+      setErrorMessage('Số hiệu build phải là số nguyên dương hợp lệ.');
       return;
     }
-    if (!VERSION_RE.test(minSupportedVersion)) {
-      setError('Phiên bản tối thiểu không đúng định dạng (ví dụ: 2.0.0)');
+    if (!VERSION_REGEX.test(minSupportedVersion)) {
+      setErrorMessage('Phiên bản tối thiểu phải có dạng x.y.z (ví dụ: 2.0.0)');
       return;
     }
 
-    const noteList = notes
+    const noteRows = notes
       .split('\n')
-      .map((n) => n.trim())
+      .map((l) => l.trim())
       .filter(Boolean);
 
     const sizeBytes = Math.round((parseFloat(fileSizeMb) || 10) * 1024 * 1024);
@@ -58,11 +58,9 @@ export const NewReleaseModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
       contentType = 'application/vnd.android.package-archive';
     }
 
-    if (platform !== 'ios') {
-      if (!SHA256_RE.test(sha256)) {
-        setError('SHA-256 hash phải có đủ 64 ký tự hex.');
-        return;
-      }
+    if (platform !== 'ios' && !SHA256_REGEX.test(sha256)) {
+      setErrorMessage('Mã băm SHA-256 bắt buộc phải gồm đúng 64 ký tự hex hợp lệ.');
+      return;
     }
 
     const manifest: ReleaseManifest = {
@@ -75,7 +73,7 @@ export const NewReleaseModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
       publishedAt: new Date().toISOString(),
       mandatory,
       minSupportedVersion,
-      releaseNotes: noteList.length > 0 ? noteList : ['Cập nhật và tối ưu hóa hệ thống.'],
+      releaseNotes: noteRows.length > 0 ? noteRows : ['Cập nhật ổn định và cải thiện bảo mật.'],
       storeUrl: platform === 'ios' ? storeUrl : null,
       artifact: platform !== 'ios' ? {
         key: `packages/${platform}/${fileName}`,
@@ -83,36 +81,39 @@ export const NewReleaseModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
         sha256,
         size: sizeBytes,
         contentType,
+        signerThumbprint: platform === 'windows' ? 'A9F23B817E4C0D6E5A28190B38914F26C9E8A731' : undefined,
       } : null,
       downloadUrl: platform !== 'ios' ? `/api/v1/releases/download?platform=${platform}&channel=${channel}` : null,
     };
 
-    ReleaseStore.addOrUpdateRelease(manifest);
-    onSuccess();
+    ProductionStore.saveRelease(manifest);
+    onPublished();
     onClose();
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3>Tạo & công bố bản phát hành mới</h3>
-            <small style={{ color: '#8aa6ce', font: '9px var(--mono)' }}>PUBLISH RELEASE MANIFEST TO LOCAL ENGINE</small>
+            <h3>Xuất bản Manifest phát hành mới</h3>
+            <small style={{ color: '#82baff', font: '9px var(--mono)' }}>
+              PUBLISH PRODUCTION RELEASE MANIFEST
+            </small>
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Đóng">✕</button>
         </div>
 
-        {error && (
+        {errorMessage && (
           <div className="server-error" style={{ marginBottom: 15, marginTop: 0 }}>
-            {error}
+            {errorMessage}
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
           <div className="form-row">
             <div className="form-group">
-              <label>NỀN TẢNG (PLATFORM)</label>
+              <label>NỀN TẢNG MỤC TIÊU</label>
               <select
                 className="form-control"
                 value={platform}
@@ -124,7 +125,7 @@ export const NewReleaseModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
               </select>
             </div>
             <div className="form-group">
-              <label>KÊNH PHÁT HÀNH (CHANNEL)</label>
+              <label>KÊNH PHÁT HÀNH</label>
               <select
                 className="form-control"
                 value={channel}
@@ -138,7 +139,7 @@ export const NewReleaseModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
 
           <div className="form-row">
             <div className="form-group">
-              <label>PHIÊN BẢN (VERSION)</label>
+              <label>PHIÊN BẢN (SEMVER x.y.z)</label>
               <input
                 type="text"
                 className="form-control"
@@ -149,7 +150,7 @@ export const NewReleaseModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
               />
             </div>
             <div className="form-group">
-              <label>MÃ BUILD (BUILD NUMBER)</label>
+              <label>SỐ HIỆU BUILD (SỐ NGUYÊN DƯƠNG)</label>
               <input
                 type="number"
                 className="form-control"
@@ -163,13 +164,13 @@ export const NewReleaseModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
 
           <div className="form-row">
             <div className="form-group">
-              <label>PHIÊN BẢN HỖ TRỢ TỐI THIỂU</label>
+              <label>PHIÊN BẢN TỐI THIỂU HỖ TRỢ</label>
               <input
                 type="text"
                 className="form-control"
                 value={minSupportedVersion}
                 onChange={(e) => setMinSupportedVersion(e.target.value)}
-                placeholder="2.0.0"
+                placeholder="2.8.0"
                 required
               />
             </div>
@@ -195,26 +196,26 @@ export const NewReleaseModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                   className="form-control"
                   value={sha256}
                   onChange={(e) => setSha256(e.target.value)}
-                  placeholder="64 ký tự hex"
+                  placeholder="Chuỗi 64 ký tự hex"
                   required
                 />
               </div>
               <div className="form-group">
-                <label>DUNG LƯỢNG TỆP (MB)</label>
+                <label>DUNG LƯỢNG GÓI CÀI ĐẶT (MB)</label>
                 <input
                   type="number"
                   step="0.1"
                   className="form-control"
                   value={fileSizeMb}
                   onChange={(e) => setFileSizeMb(e.target.value)}
-                  placeholder="48.5"
+                  placeholder="49.5"
                   required
                 />
               </div>
             </>
           ) : (
             <div className="form-group">
-              <label>URL PHÂN PHỐI TESTFLIGHT / STORE (HTTPS)</label>
+              <label>STORE / TESTFLIGHT DISTRIBUTION URL (HTTPS)</label>
               <input
                 type="url"
                 className="form-control"
@@ -233,17 +234,17 @@ export const NewReleaseModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
               rows={4}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Nội dung thay đổi..."
+              placeholder="Nội dung thay đổi trong bản phát hành này..."
               required
             />
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
             <button type="button" className="button button-quiet" onClick={onClose}>
-              Hủy bỏ
+              Hủy
             </button>
             <button type="submit" className="button button-primary">
-              Công bố bản phát hành <span>↗</span>
+              Xuất bản lên hệ thống <span>↗</span>
             </button>
           </div>
         </form>
