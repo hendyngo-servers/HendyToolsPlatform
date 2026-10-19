@@ -5,9 +5,10 @@ import { NewReleaseModal } from './NewReleaseModal';
 
 interface Props {
   onOpenPublicSite: () => void;
+  onOpenServerPanel: () => void;
 }
 
-export const ReleaseConsole: React.FC<Props> = ({ onOpenPublicSite }) => {
+export const ReleaseConsole: React.FC<Props> = ({ onOpenPublicSite, onOpenServerPanel }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'releases' | 'history' | 'publish'>('overview');
   const [activeFilter, setActiveFilter] = useState<'all' | 'windows' | 'android'>('all');
   const [windowsLatest, setWindowsLatest] = useState<ReleaseManifest | null>(null);
@@ -147,6 +148,16 @@ export const ReleaseConsole: React.FC<Props> = ({ onOpenPublicSite }) => {
             <span>Build & xuất bản</span>
             <i />
           </button>
+          <button
+            type="button"
+            className="sidebar-link"
+            style={{ color: '#82baff', border: '1px solid rgba(52, 125, 255, 0.25)', background: 'rgba(52, 125, 255, 0.08)' }}
+            onClick={onOpenServerPanel}
+          >
+            <span className="nav-icon" style={{ color: '#82baff' }}>⚙</span>
+            <span>Server Panel Plus</span>
+            <i />
+          </button>
         </nav>
 
         <div className="sidebar-bottom">
@@ -184,6 +195,14 @@ export const ReleaseConsole: React.FC<Props> = ({ onOpenPublicSite }) => {
             <span className="environment">
               <i /> PRODUCTION
             </span>
+            <button
+              type="button"
+              className="topbar-public"
+              style={{ color: '#82baff' }}
+              onClick={onOpenServerPanel}
+            >
+              Server Panel Plus <span>⚙</span>
+            </button>
             <button type="button" className="topbar-public" onClick={onOpenPublicSite}>
               Xem website công khai <span>↗</span>
             </button>

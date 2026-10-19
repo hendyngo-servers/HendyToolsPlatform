@@ -21,6 +21,14 @@
 - **Công cụ tạo & công bố Manifest (New Release Creator)**: Kiểm tra tính hợp lệ của phiên bản theo Semantic Versioning (`x.y.z`), số hiệu build, mã băm SHA-256 64-hex, phiên bản tối thiểu và ghi chú phát hành.
 - **Liên kết CI/CD GitHub Actions**: Trực tiếp liên kết với các workflow build tự động trên đám mây.
 
+### 3. Bảng quản trị máy chủ Plus (Server Management Panel Plus)
+- **Tổng quan tài nguyên thời gian thực**: Giám sát % CPU (8 vCPU), RAM (16 GB), Disk NVMe (250 GB), Băng thông mạng Network I/O.
+- **Quản lý Systemd Services**: Kiểm soát các tiến trình dịch vụ cốt lõi (`hendy-tools-api`, `nginx-reverse-proxy`, `r2-storage-sync`, `docker-daemon`, `redis-server`, `ssh-daemon`) với các thao tác Khởi động lại / Dừng / Bật.
+- **Giám sát Process**: Tra cứu theo tên/PID, mức tiêu thụ tài nguyên và khả năng kết thúc tiến trình (Kill process).
+- **Cổng kết nối & Mạng**: Danh sách cổng TCP/UDP đang lắng nghe (:80, :443, :3000, :22, :6379) và liên kết địa chỉ IP.
+- **Terminal dòng lệnh (CLI Shell)**: Terminal mô phỏng trực tiếp hỗ trợ các lệnh chẩn đoán (`uptime`, `free -h`, `df -h`, `docker ps`, `systemctl status`, `ping`, `clear`).
+- **Cấu hình môi trường**: Trình xem mẫu biến môi trường `.env` cho hệ thống.
+
 ## Cấu trúc mã nguồn
 
 ```text
@@ -36,12 +44,13 @@
     ├── types.ts                # TypeScript interfaces (ReleaseManifest, Artifact, UpdateCheck)
     ├── index.css               # Bộ phong cách Midnight Navy & Teal Mint gốc
     ├── main.tsx                # React DOM render entry point
-    ├── App.tsx                 # Điều hướng giữa Download Center và Release Console
+    ├── App.tsx                 # Điều hướng giữa Download Center, Release Console và Server Panel
     ├── services/
     │   └── releaseStore.ts     # Bộ lưu trữ và thuật toán kiểm tra cập nhật Hendy
     └── components/
         ├── DownloadCenter.tsx  # Giao diện tải ứng dụng công khai
         ├── ReleaseConsole.tsx  # Bảng điều khiển quản trị phát hành
+        ├── ServerManagementPanel.tsx # Bảng quản trị máy chủ Plus
         ├── NewReleaseModal.tsx # Modal tạo và công bố manifest mới
         └── IntegrityCheckModal.tsx # Modal kiểm tra và so sánh SHA-256
 ```

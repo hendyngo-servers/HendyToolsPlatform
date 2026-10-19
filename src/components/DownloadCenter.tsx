@@ -4,10 +4,11 @@ import { ReleaseManifest } from '../types';
 
 interface Props {
   onOpenConsole: () => void;
+  onOpenServerPanel: () => void;
   onOpenIntegrity: () => void;
 }
 
-export const DownloadCenter: React.FC<Props> = ({ onOpenConsole, onOpenIntegrity }) => {
+export const DownloadCenter: React.FC<Props> = ({ onOpenConsole, onOpenServerPanel, onOpenIntegrity }) => {
   const [windowsRelease, setWindowsRelease] = useState<ReleaseManifest | null>(null);
   const [androidRelease, setAndroidRelease] = useState<ReleaseManifest | null>(null);
   const [iosRelease, setIosRelease] = useState<ReleaseManifest | null>(null);
@@ -81,7 +82,7 @@ export const DownloadCenter: React.FC<Props> = ({ onOpenConsole, onOpenIntegrity
           <span className="brand-mark">
             <svg viewBox="0 0 42 42" aria-hidden="true">
               <path d="M8 8h8v10h10V8h8v26h-8V25H16v9H8z" fill="currentColor" />
-              <path d="M27 4h11v11" fill="none" stroke="#73E4D0" stroke-width="3" stroke-linecap="round" />
+              <path d="M27 4h11v11" fill="none" stroke="#73E4D0" strokeWidth="3" strokeLinecap="round" />
             </svg>
           </span>
           <span className="brand-copy">
@@ -98,6 +99,14 @@ export const DownloadCenter: React.FC<Props> = ({ onOpenConsole, onOpenIntegrity
         </nav>
 
         <div className="header-cta-group">
+          <button
+            type="button"
+            className="header-admin-cta"
+            style={{ color: '#82baff', borderColor: 'rgba(52, 125, 255, 0.3)', background: 'rgba(52, 125, 255, 0.08)' }}
+            onClick={onOpenServerPanel}
+          >
+            Server Panel Plus <span>⚙</span>
+          </button>
           <button type="button" className="header-admin-cta" onClick={onOpenConsole}>
             Release Console <span>↗</span>
           </button>
@@ -422,8 +431,8 @@ export const DownloadCenter: React.FC<Props> = ({ onOpenConsole, onOpenIntegrity
           <div className="integrity-banner">
             <div className="integrity-emblem">
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 3 20 6v5c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6z" fill="none" stroke="currentColor" stroke-width="1.5" />
-                <path d="m8.5 12 2.2 2.2 4.8-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M12 3 20 6v5c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                <path d="m8.5 12 2.2 2.2 4.8-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
             <div>
@@ -561,7 +570,7 @@ export const DownloadCenter: React.FC<Props> = ({ onOpenConsole, onOpenIntegrity
           <span className="brand-mark">
             <svg viewBox="0 0 42 42" aria-hidden="true">
               <path d="M8 8h8v10h10V8h8v26h-8V25H16v9H8z" fill="currentColor" />
-              <path d="M27 4h11v11" fill="none" stroke="#73E4D0" stroke-width="3" stroke-linecap="round" />
+              <path d="M27 4h11v11" fill="none" stroke="#73E4D0" strokeWidth="3" strokeLinecap="round" />
             </svg>
           </span>
           <span className="brand-copy">
