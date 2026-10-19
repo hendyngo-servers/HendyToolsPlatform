@@ -116,32 +116,43 @@ Tích hợp trực tiếp trong Bảng Quản Trị Server Plus để nâng cao 
 
 ## Hướng dẫn Triển khai Production (Deployment Guides)
 
-### A. Triển khai trên Cloudflare (https://dash.cloudflare.com/)
+### A. Triển khai Web Service trên Render.com (https://render.com/)
 
-1. Đăng nhập vào [Cloudflare Dashboard](https://dash.cloudflare.com/).
-2. Chọn **Workers & Pages** → **Create application** → tab **Pages** → **Connect to Git**.
-3. Chọn kho lưu trữ GitHub của dự án.
-4. Thiết lập cấu hình Build:
-   - **Framework preset**: `Vite`
-   - **Build command**: `npm run build`
-   - **Build output directory**: `dist`
-   - **Node.js version**: `22` (hoặc đặt biến môi trường `NODE_VERSION=22`)
-5. Nhấn **Save and Deploy**. Dự án sẽ tự động kích hoạt tính năng SPA Routing từ file `public/_redirects` và triển khai trên mạng lưới Edge toàn cầu của Cloudflare.
+Hỗ trợ 2 chế độ triển khai thông qua Blueprint `render.yaml`:
+1. **Chế độ 1: Web Service (Node.js Full-Stack — Khuyên dùng)**
+   - Đăng nhập vào [Render Dashboard](https://dashboard.render.com/).
+   - Nhấn **New +** → **Blueprint** hoặc **Web Service** → Kết nối repo GitHub.
+   - Thiết lập cấu hình:
+     - **Runtime / Environment**: `Node`
+     - **Build Command**: `npm install && npm run build`
+     - **Start Command**: `npm start` (hoặc `node server.js`)
+     - **Port**: Tự động nhận diện qua biến `PORT` (hoặc đặt `3000`/`10000`).
+     - **Healthcheck Path**: `/api/health`
+   - Dịch vụ cung cấp cả REST API (`/api/health`, `/api/releases`, `/api/update-check`, `/api/domains`, `/api/telemetry`) và phục vụ tệp tĩnh `./dist` với fallback SPA tự động.
+2. **Chế độ 2: Static Site**
+   - Đọc tự động từ `render.yaml` (`env: static`), publish directory `./dist`, tự động rewrite `/*` -> `/index.html`.
 
-### B. Triển khai trên Render (https://render.com/)
+### B. Triển khai trên Cloudflare (Pages & Workers) (https://dash.cloudflare.com/)
 
-1. Đăng nhập vào [Render Dashboard](https://dashboard.render.com/).
-2. Nhấn **New +** → **Blueprint**.
-3. Kết nối với kho lưu trữ GitHub. Render sẽ tự động đọc tệp `render.yaml` trong thư mục gốc:
-   - **Loại dịch vụ**: Static Site
-   - **Build Command**: `npm install && npm run build`
-   - **Publish Directory**: `./dist`
-   - **Routes**: SPA rewrite tự động `/*` -> `/index.html`
-4. Nhấn **Apply**. Dịch vụ sẽ tự động build và cấp phát tên miền HTTPS với chứng chỉ SSL/TLS miễn phí.
+1. **Cloudflare Pages (Tĩnh & Functions Edge)**:
+   - Trong Cloudflare Dashboard: **Workers & Pages** → **Create application** → tab **Pages** → **Connect to Git**.
+   - Build Command: `npm run build`
+   - Build Output Directory: `dist`
+   - Tự động nhận diện `public/_redirects` (SPA rewrite), `public/_headers` (bảo mật), và `functions/api/[[route]].ts` (Edge API).
+2. **Cloudflare Workers (Edge API & Dynamic Proxy)**:
+   - Chạy lệnh CLI: `npx wrangler deploy` (sử dụng tệp cấu hình `wrangler.toml` và script `src/worker.ts`).
+   - Tự động đóng gói tài sản tĩnh từ `./dist` qua Assets binding và phục vụ API trực tiếp từ hơn 300 POPs của Cloudflare.
+
+### C. Tự động hóa CI/CD qua GitHub Actions (via github.com)
+
+Dự án tích hợp sẵn 3 workflow trong `.github/workflows/`:
+1. `deploy-render.yml`: Tự động kích hoạt Render Deploy Hook khi push lên nhánh `main`.
+2. `deploy-cloudflare.yml`: Tự động build và đẩy lên Cloudflare Pages & Workers khi có code mới.
+3. `build-and-publish-release.yml`: Tự động build bộ cài Windows (Inno Setup), Android (APK Gradle) và tải lên Cloudflare R2.
 
 ---
 
-## Hướng dẫn Phát triển Nội bộ (Local Development)
+## Hướng dẫn Phát triển & Vận hành Nội bộ (Local Development)
 
 ```bash
 # Cài đặt thư viện phụ thuộc
@@ -150,12 +161,13 @@ npm install
 # Khởi chạy môi trường phát triển (Port 3000)
 npm run dev
 
+# Khởi chạy máy chủ Web Service Production Node.js
+npm run build
+npm start
+
 # Kiểm tra cú pháp và kiểu dữ liệu TypeScript
 npm run lint
 
 # Đóng gói sản phẩm cho môi trường Production
 npm run build
-
-# Xem trước bản đóng gói
-npm run preview
 ```

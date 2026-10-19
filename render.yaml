@@ -1,6 +1,36 @@
+# Render.com Blueprint Specification
+# Supports both:
+# 1) Full-stack Node.js Web Service (API + SPA serving via Express on Render)
+# 2) Static Site (Fast global CDN delivery via Render Static Sites)
+
 services:
+  # Primary: Render Web Service (Full-stack Node.js Express server)
   - type: web
-    name: hendy-tools-platform
+    name: hendy-tools-web-service
+    env: node
+    plan: free
+    region: singapore
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+
+  # Alternative: Render Static Site (Direct static hosting from ./dist)
+  - type: web
+    name: hendy-tools-static
     env: static
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist

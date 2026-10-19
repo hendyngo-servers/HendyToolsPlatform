@@ -1,5 +1,13 @@
 name = "hendy-tools-platform"
+main = "src/worker.ts"
 compatibility_date = "2026-10-15"
+
+# Cloudflare Workers static assets configuration
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+# Cloudflare Pages build output configuration
 pages_build_output_dir = "./dist"
 
 [site]

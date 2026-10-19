@@ -2,18 +2,57 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <meta name="theme-color" content="#06101f">
-  <meta name="description" content="Trung tâm tải về và bảng điều khiển quản lý phát hành chính thức của Hendy Tools cho Windows, Android và iOS.">
+  <meta name="application-name" content="Hendy Tools Platform">
+  <meta name="apple-mobile-web-app-title" content="Hendy Tools">
+  <meta name="description" content="Trung tâm tải về và bảng điều khiển quản lý phát hành chính thức của Hendy Tools cho Windows, Android và iOS. Hỗ trợ triển khai đa nền tảng Render.com, Cloudflare Pages/Workers và GitHub.">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
   <meta property="og:title" content="Hendy Tools — Download Center & Release Console">
-  <meta property="og:description" content="Trung tâm tải về và bảng điều khiển quản lý phát hành chính thức của Hendy Tools cho Windows, Android và iOS.">
+  <meta property="og:description" content="Trung tâm tải về và bảng điều khiển quản lý phát hành chính thức của Hendy Tools cho Windows, Android và iOS. Triển khai đa đám mây Cloudflare & Render.">
+  <meta property="og:image" content="/favicon.svg">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Hendy Tools — Download Center & Release Console">
+  <meta name="twitter:description" content="Trung tâm tải về và bảng điều khiển quản lý phát hành chính thức của Hendy Tools cho Windows, Android và iOS.">
+  <meta name="twitter:image" content="/favicon.svg">
+  
   <title>Hendy Tools — Download Center & Release Console</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Single Page App URL restoration for GitHub Pages and Cloudflare subpath rewrites -->
+  <script>
+    (function(l) {
+      if (l.search && l.search[1] === '/') {
+        var decoded = l.search.slice(1).split('&').map(function(s) {
+          return s.replace(/~and~/g, '&');
+        }).join('?');
+        window.history.replaceState(null, null,
+          l.pathname.slice(0, -1) + decoded + l.hash
+        );
+      } else if (l.search && (l.search.indexOf('p=/') !== -1 || l.search.indexOf('?p=/') === 0)) {
+        var match = l.search.match(/[?&]p=([^&]+)/);
+        if (match) {
+          var p = decodeURIComponent(match[1]);
+          window.history.replaceState(null, null, p + (l.hash || ''));
+        }
+      }
+    }(window.location));
+  </script>
 </head>
 <body>
+  <noscript>
+    <div style="padding: 24px; font-family: sans-serif; background: #06101f; color: #fff; text-align: center;">
+      <h2>Hendy Tools Platform</h2>
+      <p>Vui lòng kích hoạt JavaScript trong trình duyệt để sử dụng Trung tâm Tải về và Bảng Quản trị Máy chủ Plus.</p>
+    </div>
+  </noscript>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>

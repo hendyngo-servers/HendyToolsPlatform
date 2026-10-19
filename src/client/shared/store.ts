@@ -758,8 +758,26 @@ export class ProductionStore {
   ): { view: 'download' | 'admin'; matchedSource: string; defaultTab?: string } {
     if (this.domains.length === 0) this.initialize();
 
-    // 1. Explicit search parameters (?interface=admin / ?view=download)
+    // 1. Explicit search parameters (?interface=admin / ?view=download or GitHub Pages ?p=/admin)
     const params = new URLSearchParams(search);
+    const pParam = (params.get('p') || '').toLowerCase();
+    if (pParam) {
+      if (pParam.startsWith('/admin') || pParam.startsWith('/console') || pParam.startsWith('/server')) {
+        const pSegments = pParam.split('/').filter(Boolean);
+        return {
+          view: 'admin',
+          matchedSource: `GitHub Pages redirect path (${pParam})`,
+          defaultTab: pSegments[1] || undefined,
+        };
+      }
+      if (pParam.startsWith('/download') || pParam.startsWith('/portal')) {
+        return {
+          view: 'download',
+          matchedSource: `GitHub Pages redirect path (${pParam})`,
+        };
+      }
+    }
+
     const ifaceParam = (params.get('interface') || params.get('view') || '').toLowerCase();
     if (['admin', 'manage', 'server', 'console'].includes(ifaceParam)) {
       return {
